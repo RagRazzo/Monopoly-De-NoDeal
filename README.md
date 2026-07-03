@@ -14,6 +14,11 @@ can cheat by editing the client.
   payment with no change given, win at 3 complete sets of different colors.
 - **3D table**: cards are real 3D objects with canvas-painted faces, spring
   animations between zones, an orbitable camera, and per-player nameplates.
+- **Desktop and mobile browsers**: touch-friendly controls (tap to select,
+  one-finger orbit, pinch zoom), a responsive camera that refits the table on
+  portrait screens, a compact HUD with an on-demand log panel, safe-area/notch
+  insets, dynamic-viewport-height layout, and a capped pixel ratio for phone
+  GPUs.
 - **Up to 6 players** with a *proportionally scaled deck*: the base 106-card
   deck grows to 144 cards for 5 players and 170 for 6, keeping every card
   type's draw probability faithful to the base game while adding enough

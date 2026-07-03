@@ -91,7 +91,7 @@ function playerCards(out: Placement[], p: ClientPlayer, f: Frame, mine: boolean)
   }
 }
 
-export function computePlacements(game: ClientGame): Placement[] {
+export function computePlacements(game: ClientGame, aspect = 1.78, fit = 1): Placement[] {
   const out: Placement[] = []
   const seats = seatPositions(game)
 
@@ -124,17 +124,24 @@ export function computePlacements(game: ClientGame): Placement[] {
     playerCards(out, p, seats.get(p.id)!, p.id === game.youId)
   }
 
-  // My hand: an arc floating in front of the camera's default view.
+  // My hand: an arc floating in front of the camera's default view. The
+  // whole arc tracks the camera fit factor (portrait screens push the
+  // camera back) and compresses horizontally on narrow viewports.
   const hand = game.yourHand
   const n = hand.length
+  const squeeze = Math.min(1, aspect / 1.6)
   hand.forEach((card, i) => {
     const t = n === 1 ? 0 : i / (n - 1) - 0.5
     out.push({
       key: card.id,
       card,
-      pos: [t * Math.min(6.4, n * 1.05), 3.1 + Math.cos(t * 2.4) * 0.25, 6.9 + Math.abs(t) * 0.35],
+      pos: [
+        t * Math.min(6.4, n * 1.05) * squeeze * fit,
+        (3.1 + Math.cos(t * 2.4) * 0.25) * fit,
+        (6.9 + Math.abs(t) * 0.35) * fit,
+      ],
       rot: [-0.42, 0, -t * 0.28],
-      scale: 1.05,
+      scale: 1.05 * fit,
       handCard: true,
     })
   })

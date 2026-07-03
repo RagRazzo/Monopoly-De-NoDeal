@@ -13,9 +13,9 @@ export default function App() {
 
   return (
     <div className="game-root">
-      <Canvas shadows camera={{ position: [0, 8.2, 11.2], fov: 46 }}>
+      <Canvas dpr={[1, 2]} camera={{ position: [0, 8.2, 11.2], fov: 46 }}>
         <color attach="background" args={['#101418']} />
-        <fog attach="fog" args={['#101418', 18, 34]} />
+        <fog attach="fog" args={['#101418', 22, 44]} />
         <Scene game={game} />
       </Canvas>
       <Hud game={game} />

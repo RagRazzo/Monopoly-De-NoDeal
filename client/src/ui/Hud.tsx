@@ -1,17 +1,17 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ClientGame } from '@shared/types'
 import { leaveRoom, send } from '../net'
 import { useStore } from '../store'
 import { actionsForCard, moveWildFlow } from './actions'
 import { DiscardModal, JsnModal, PaymentModal, PromptModal } from './Modals'
 
-function LogPanel({ game }: { game: ClientGame }) {
+function LogPanel({ game, open }: { game: ClientGame; open: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     ref.current?.scrollTo({ top: ref.current.scrollHeight })
   }, [game.log.length])
   return (
-    <div className="log-panel" ref={ref}>
+    <div className={`log-panel ${open ? 'open' : ''}`} ref={ref}>
       {game.log.map((line, i) => (
         <div key={i} className="log-line">
           {line}
@@ -92,6 +92,7 @@ function WinnerOverlay({ game }: { game: ClientGame }) {
 export function Hud({ game }: { game: ClientGame }) {
   const error = useStore((s) => s.error)
   const connected = useStore((s) => s.connected)
+  const [logOpen, setLogOpen] = useState(false)
   const turnPlayer = game.players.find((p) => p.id === game.turnPlayerId)
   const myTurn = game.turnPlayerId === game.youId
 
@@ -105,13 +106,16 @@ export function Hud({ game }: { game: ClientGame }) {
         <span className="counts">
           Deck {game.deckCount} · Discard {game.discardCount}
         </span>
+        <button className="ghost-btn small log-toggle" onClick={() => setLogOpen((v) => !v)}>
+          {logOpen ? 'Hide log' : 'Log'}
+        </button>
         <button className="ghost-btn small" onClick={leaveRoom}>
           Leave
         </button>
       </div>
       {!connected && <div className="pending-banner offline">Reconnecting…</div>}
       <PendingBanner game={game} />
-      <LogPanel game={game} />
+      <LogPanel game={game} open={logOpen} />
       <ActionBar game={game} />
       {error && <div className="toast">{error}</div>}
       <PromptModal />

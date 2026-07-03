@@ -1,10 +1,34 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
+import { useThree } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
+import type { PerspectiveCamera } from 'three'
 import { COLOR_INFO } from '@shared/cards'
 import { isPileComplete } from '@shared/logic'
 import type { ClientGame } from '@shared/types'
 import { Card3D } from './Card3D'
 import { computePlacements, seatPositions } from './layout'
+
+// Pulls the camera up/back and widens the FOV on narrow (portrait/mobile)
+// viewports so the whole table stays in frame.
+function useViewFit(): { fit: number; fov: number; aspect: number } {
+  const aspect = useThree((s) => s.size.width / Math.max(1, s.size.height))
+  const fit = aspect >= 1.35 ? 1 : Math.min(1.55, Math.pow(1.35 / aspect, 0.5))
+  const fov = aspect < 1 ? 60 : 46
+  return { fit, fov, aspect }
+}
+
+function CameraRig({ fit, fov }: { fit: number; fov: number }) {
+  const camera = useThree((s) => s.camera)
+  useEffect(() => {
+    camera.position.set(0, 8.2 * fit, 11.2 * fit)
+    const persp = camera as PerspectiveCamera
+    if (persp.isPerspectiveCamera) {
+      persp.fov = fov
+      persp.updateProjectionMatrix()
+    }
+  }, [camera, fit, fov])
+  return null
+}
 
 function Table() {
   return (
@@ -61,7 +85,8 @@ function Nameplates({ game }: { game: ClientGame }) {
 }
 
 export function Scene({ game }: { game: ClientGame }) {
-  const placements = useMemo(() => computePlacements(game), [game])
+  const { fit, fov, aspect } = useViewFit()
+  const placements = useMemo(() => computePlacements(game, aspect, fit), [game, aspect, fit])
   return (
     <>
       <ambientLight intensity={0.85} />
@@ -73,11 +98,12 @@ export function Scene({ game }: { game: ClientGame }) {
       {placements.map((p) => (
         <Card3D key={p.key} p={p} />
       ))}
+      <CameraRig fit={fit} fov={fov} />
       <OrbitControls
         target={[0, 0.4, 1.2]}
         enablePan={false}
-        minDistance={7}
-        maxDistance={15}
+        minDistance={7 * fit}
+        maxDistance={15 * fit}
         minPolarAngle={0.35}
         maxPolarAngle={1.25}
         minAzimuthAngle={-0.8}

@@ -10,15 +10,24 @@ body,
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   background: #101418;
   color: #e5e7eb;
+  overscroll-behavior: none;
+}
+
+body {
+  -webkit-touch-callout: none;
 }
 
 .game-root {
   position: relative;
   height: 100%;
+  height: 100dvh; /* track the mobile browser chrome */
 }
 
 .game-root canvas {
   display: block;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 button {
@@ -26,10 +35,12 @@ button {
   cursor: pointer;
   border: none;
   border-radius: 10px;
+  touch-action: manipulation; /* no double-tap zoom on controls */
 }
 
 input {
   font: inherit;
+  font-size: 16px; /* prevents iOS focus auto-zoom */
   padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid #374151;
@@ -204,8 +215,13 @@ input {
   display: flex;
   align-items: center;
   gap: 18px;
-  padding: 10px 16px;
+  padding: calc(10px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 10px
+    calc(16px + env(safe-area-inset-left));
   background: linear-gradient(to bottom, rgba(10, 13, 16, 0.9), transparent);
+}
+
+.log-toggle {
+  display: none;
 }
 
 .room-code {
@@ -264,7 +280,7 @@ input {
 .action-bar {
   margin-top: auto;
   align-self: center;
-  margin-bottom: 12px;
+  margin-bottom: calc(12px + env(safe-area-inset-bottom));
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -457,4 +473,91 @@ input {
 
 .dot.off {
   background: #6b7280;
+}
+
+/* ---- Small screens (phones, small tablets, cramped landscape) ---- */
+@media (max-width: 760px), (max-height: 520px) {
+  .top-bar {
+    gap: 10px;
+    font-size: 13px;
+    flex-wrap: wrap;
+    padding-left: calc(10px + env(safe-area-inset-left));
+    padding-right: calc(10px + env(safe-area-inset-right));
+  }
+
+  .counts {
+    display: none; /* deck/discard counts are visible on the 3D table itself */
+  }
+
+  .log-toggle {
+    display: inline-block;
+    margin-left: auto;
+  }
+
+  /* Log becomes an on-demand overlay instead of permanent chrome. */
+  .log-panel {
+    display: none;
+    top: 84px;
+    right: 8px;
+    width: min(260px, 74vw);
+    max-height: 46vh;
+    z-index: 20;
+  }
+
+  .log-panel.open {
+    display: block;
+  }
+
+  .pending-banner {
+    font-size: 13px;
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .action-bar {
+    gap: 6px;
+    padding: 8px 10px;
+    margin-bottom: calc(8px + env(safe-area-inset-bottom));
+    max-width: 98%;
+  }
+
+  .action-bar button {
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+
+  .toast {
+    bottom: 96px;
+    width: max-content;
+    max-width: 92vw;
+    font-size: 14px;
+  }
+
+  .modal {
+    padding: 16px;
+    max-height: 88vh;
+  }
+
+  .modal.wide {
+    width: 94vw;
+  }
+
+  .chip-grid {
+    grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+    gap: 6px;
+  }
+
+  .nameplate {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  .np-stats {
+    font-size: 10px;
+  }
+
+  .landing-card {
+    padding: 20px;
+  }
 }
