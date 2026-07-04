@@ -41,6 +41,13 @@ export function AdminPage({ master, onBack }: { master: string; onBack: () => vo
             them (see README).
           </p>
         )}
+        {data && data.durable === 'unmounted' && (
+          <p className="muted storage-broken">
+            ❌ DATA_DIR is set but no volume is mounted there — writes are going to plain container
+            disk and will NOT survive. In Cloud Run: Volumes tab → add the Cloud Storage bucket,
+            then Container tab → Volume mounts → mount it at exactly the DATA_DIR path.
+          </p>
+        )}
         {data && data.durable.startsWith('failed') && (
           <p className="muted storage-broken">
             ❌ DATA_DIR is set but not writable ({data.durable}) — changes will NOT survive.

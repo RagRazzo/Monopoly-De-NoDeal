@@ -38,9 +38,26 @@ const USAGE_FILE = path.join(DATA_DIR ?? ROOT, 'host-code-usage.jsonl')
 
 // Self-test the data dir at boot so a broken mount is loudly visible on
 // /healthz and the admin page instead of failing silently on every write.
-// 'off' = no DATA_DIR; 'ok' = read/write verified; 'failed: <errno>' with
-// EROFS = mount is read-only, EACCES = service account lacks Storage
-// Object Admin, ENOENT = DATA_DIR path does not match the volume mount.
+// 'off' = no DATA_DIR; 'ok' = writable AND a real mounted volume;
+// 'unmounted' = writable but plain container disk (no volume attached at
+// that path — on Cloud Run this means data still vanishes on restart!);
+// 'failed: <errno>' with EROFS = mount is read-only, EACCES = service
+// account lacks Storage Object Admin, ENOENT = path mismatch.
+
+// A directory that is not its own mount point is just container disk.
+function isMountPoint(dir: string): boolean {
+  try {
+    if (!fs.existsSync('/proc/mounts')) return true // non-Linux dev box: can't tell, assume ok
+    const target = path.resolve(dir)
+    return fs
+      .readFileSync('/proc/mounts', 'utf8')
+      .split('\n')
+      .some((line) => line.split(' ')[1] === target)
+  } catch {
+    return true
+  }
+}
+
 export let durableStatus = 'off'
 if (DATA_DIR) {
   try {
@@ -49,8 +66,15 @@ if (DATA_DIR) {
     fs.writeFileSync(probe, String(Date.now()))
     fs.readFileSync(probe, 'utf8')
     fs.unlinkSync(probe)
-    durableStatus = 'ok'
-    console.log(`host-codes: DATA_DIR ${DATA_DIR} verified writable`)
+    if (isMountPoint(DATA_DIR)) {
+      durableStatus = 'ok'
+      console.log(`host-codes: DATA_DIR ${DATA_DIR} verified writable (mounted volume)`)
+    } else {
+      durableStatus = 'unmounted'
+      console.error(
+        `host-codes: DATA_DIR ${DATA_DIR} is writable but NOT a mounted volume — this is plain container disk and will be wiped on restart. Attach the Cloud Storage volume at exactly this path.`,
+      )
+    }
   } catch (err) {
     durableStatus = `failed: ${(err as NodeJS.ErrnoException).code ?? String(err)}`
     console.error(`host-codes: DATA_DIR ${DATA_DIR} is NOT writable — durable persistence broken:`, err)
