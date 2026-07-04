@@ -41,9 +41,10 @@ can cheat by editing the client.
   games. Codes live in [`host-codes.json`](host-codes.json) at the repo
   root. Entering the `masterCode` on the home page reveals an in-app admin
   page to add/enable/disable/delete codes and see per-code usage (count,
-  time, browser locale/timezone, IP). In-app changes apply immediately but
-  reset to the repo file on the next deploy; usage history also resets on
-  redeploy, with a permanent copy in Cloud Logging (`host-code-usage` lines).
+  time, browser locale/timezone, IP). With a `DATA_DIR` volume mounted (see
+  the deploy section) in-app changes and usage history persist across
+  deploys; without it they reset to the repo file on redeploy. Either way a
+  permanent usage trail lands in Cloud Logging (`host-code-usage` lines).
 - **Solo mode vs CPU**: while the host is alone in the lobby they can start a
   game against a rule-based CPU opponent (the option disappears the moment a
   real player joins). The CPU uses a fixed heuristic strategy — no
