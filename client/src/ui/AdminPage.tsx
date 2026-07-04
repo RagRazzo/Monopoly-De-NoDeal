@@ -6,7 +6,7 @@ import { toast, useStore } from '../store'
 interface AdminData {
   codes: HostCodeStat[]
   recent: HostCodeUsageEvent[]
-  durable: boolean
+  durable: string // 'off' | 'ok' | 'failed: <errno>'
 }
 
 type AdminAck = ({ ok: true } & AdminData) | { ok: false; error: string }
@@ -31,16 +31,23 @@ export function AdminPage({ master, onBack }: { master: string; onBack: () => vo
     <div className="landing">
       <div className="landing-card admin-card">
         <h2>Host codes</h2>
-        {data &&
-          (data.durable ? (
-            <p className="muted">✅ Durable storage is on — changes here survive deploys and restarts.</p>
-          ) : (
-            <p className="muted">
-              ⚠️ No durable storage: changes here reset to <code>host-codes.json</code> on the next
-              deploy or restart. Mount a Cloud Storage volume and set <code>DATA_DIR</code> to keep
-              them (see README).
-            </p>
-          ))}
+        {data && data.durable === 'ok' && (
+          <p className="muted">✅ Durable storage is on — changes here survive deploys and restarts.</p>
+        )}
+        {data && data.durable === 'off' && (
+          <p className="muted">
+            ⚠️ No durable storage: changes here reset to <code>host-codes.json</code> on the next
+            deploy or restart. Mount a Cloud Storage volume and set <code>DATA_DIR</code> to keep
+            them (see README).
+          </p>
+        )}
+        {data && data.durable.startsWith('failed') && (
+          <p className="muted storage-broken">
+            ❌ DATA_DIR is set but not writable ({data.durable}) — changes will NOT survive.
+            EROFS: volume mounted read-only · EACCES: service account needs Storage Object Admin ·
+            ENOENT: DATA_DIR doesn't match the mount path.
+          </p>
+        )}
         {!data ? (
           <p className="muted">Loading…</p>
         ) : (

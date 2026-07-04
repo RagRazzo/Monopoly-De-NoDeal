@@ -9,7 +9,7 @@ import * as engine from './engine.ts'
 import {
   addCode,
   deleteCode,
-  durableStorage,
+  durableStatus,
   isMasterCode,
   isValidHostCode,
   listCodeStats,
@@ -32,7 +32,7 @@ app.get('/healthz', (_req, res) =>
   res.json({
     ok: true,
     revision: process.env.K_REVISION ?? 'dev', // Cloud Run sets this per deploy
-    durableHostCodes: durableStorage,
+    durableHostCodes: durableStatus, // 'off' | 'ok' | 'failed: <errno>'
     uptimeSeconds: Math.round((Date.now() - bootedAt) / 1000),
     activeRooms: [...allRooms()].length,
   }))
@@ -128,8 +128,8 @@ io.on('connection', (socket) => {
   })
 
   // ---- Host-code admin (every call re-checks the master code) ----
-  type AdminAck = Ack<{ codes: ReturnType<typeof listCodeStats>; recent: ReturnType<typeof recentUsage>; durable: boolean }>
-  const adminPayload = (): AdminAck => ({ ok: true, codes: listCodeStats(), recent: recentUsage(100), durable: durableStorage })
+  type AdminAck = Ack<{ codes: ReturnType<typeof listCodeStats>; recent: ReturnType<typeof recentUsage>; durable: string }>
+  const adminPayload = (): AdminAck => ({ ok: true, codes: listCodeStats(), recent: recentUsage(100), durable: durableStatus })
 
   socket.on('adminCheck', ({ code }: { code?: string }, ack: (a: { isMaster: boolean }) => void) =>
     ack({ isMaster: isMasterCode(String(code ?? '')) }))

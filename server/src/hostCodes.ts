@@ -36,6 +36,27 @@ export const durableStorage = !!DATA_DIR
 const CODES_FILE = DATA_DIR ? path.join(DATA_DIR, 'host-codes.json') : REPO_CODES_FILE
 const USAGE_FILE = path.join(DATA_DIR ?? ROOT, 'host-code-usage.jsonl')
 
+// Self-test the data dir at boot so a broken mount is loudly visible on
+// /healthz and the admin page instead of failing silently on every write.
+// 'off' = no DATA_DIR; 'ok' = read/write verified; 'failed: <errno>' with
+// EROFS = mount is read-only, EACCES = service account lacks Storage
+// Object Admin, ENOENT = DATA_DIR path does not match the volume mount.
+export let durableStatus = 'off'
+if (DATA_DIR) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true })
+    const probe = path.join(DATA_DIR, '.write-probe')
+    fs.writeFileSync(probe, String(Date.now()))
+    fs.readFileSync(probe, 'utf8')
+    fs.unlinkSync(probe)
+    durableStatus = 'ok'
+    console.log(`host-codes: DATA_DIR ${DATA_DIR} verified writable`)
+  } catch (err) {
+    durableStatus = `failed: ${(err as NodeJS.ErrnoException).code ?? String(err)}`
+    console.error(`host-codes: DATA_DIR ${DATA_DIR} is NOT writable — durable persistence broken:`, err)
+  }
+}
+
 const norm = (s: string) => s.trim().toLowerCase()
 
 function loadCodesFile(p: string): CodesFile | null {

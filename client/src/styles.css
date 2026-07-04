@@ -441,6 +441,10 @@ input {
   color: #f87171;
 }
 
+.storage-broken {
+  color: #f87171 !important;
+}
+
 .usage-list {
   max-height: 320px;
   overflow-y: auto;
