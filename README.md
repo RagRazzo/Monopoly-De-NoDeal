@@ -27,6 +27,14 @@ can cheat by editing the client.
 - **Private rooms**: 5-letter codes, nickname-only (no accounts), reconnect
   support (rejoin token in localStorage), host tools for stuck/disconnected
   players.
+- **Solo mode vs CPU**: while the host is alone in the lobby they can start a
+  game against a rule-based CPU opponent (the option disappears the moment a
+  real player joins). The CPU uses a fixed heuristic strategy — no
+  LLM/AI service — reacting to opponents' plays: threat-scored Just Say No
+  usage, minimal-loss payments, set-completion-first building,
+  steal/deal-breaker target selection, and richest-player rent targeting. It
+  only reads public zones plus its own hand — it never peeks at your cards or
+  the deck.
 - **Server-authoritative**: every action is validated server-side; each player
   only ever receives their own hand (opponents' hands and the deck order are
   never sent over the wire).

@@ -24,9 +24,16 @@ export function Lobby({ game }: { game: ClientGame }) {
           ))}
         </ul>
         {isHost ? (
-          <button className="primary-btn big" disabled={!canStart} onClick={() => send('startGame')}>
-            {canStart ? 'Start game' : `Waiting for players (min ${MIN_PLAYERS})`}
-          </button>
+          <>
+            <button className="primary-btn big" disabled={!canStart} onClick={() => send('startGame')}>
+              {canStart ? 'Start game' : `Waiting for players (min ${MIN_PLAYERS})`}
+            </button>
+            {game.players.length === 1 && (
+              <button className="option-btn cpu-btn" onClick={() => send('startWithBot')}>
+                🤖 Play solo vs CPU
+              </button>
+            )}
+          </>
         ) : (
           <p className="muted">Waiting for the host to start…</p>
         )}

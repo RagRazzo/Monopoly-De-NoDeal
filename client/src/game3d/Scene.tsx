@@ -65,6 +65,7 @@ function Nameplates({ game }: { game: ClientGame }) {
             <div className={`nameplate ${isTurn ? 'turn' : ''} ${p.left || !p.connected ? 'away' : ''}`}>
               <div className="np-name">
                 <span className={`dot ${p.connected && !p.left ? 'on' : 'off'}`} />
+                {p.isBot ? '🤖 ' : ''}
                 {p.name}
                 {p.isHost ? ' ♛' : ''}
               </div>

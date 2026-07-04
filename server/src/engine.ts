@@ -84,12 +84,43 @@ export function addPlayer(game: Game, name: string, id: string, token: string): 
     seat: game.players.length,
     connected: true,
     left: false,
+    bot: false,
     hand: [],
     bank: [],
     piles: [],
   })
   log(game, `${clean} joined the room`)
   return null
+}
+
+export function addBot(game: Game): string | null {
+  if (game.phase !== 'lobby') return 'Game already started'
+  if (game.players.length >= MAX_PLAYERS) return `Room is full (max ${MAX_PLAYERS} players)`
+  game.players.push({
+    id: `bot-${game.players.length}`,
+    token: crypto.randomUUID(),
+    name: 'CPU',
+    seat: game.players.length,
+    connected: true,
+    left: false,
+    bot: true,
+    hand: [],
+    bank: [],
+    piles: [],
+  })
+  log(game, '🤖 CPU joined the game')
+  return null
+}
+
+// Host-only solo mode: adds a CPU opponent and starts immediately.
+// Only allowed while the host is alone in the room.
+export function startWithBot(game: Game, byId: string): string | null {
+  if (game.phase !== 'lobby') return 'Game already started'
+  if (byId !== game.hostId) return 'Only the host can start a CPU game'
+  if (game.players.length !== 1) return 'CPU mode is only available while you are alone in the room'
+  const err = addBot(game)
+  if (err) return err
+  return startGame(game, byId)
 }
 
 export function startGame(game: Game, byId: string): string | null {

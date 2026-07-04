@@ -6,6 +6,7 @@ import { Server, type Socket } from 'socket.io'
 import type { Ack, Game, PlayActionOpts } from '../../shared/src/types.ts'
 import type { Color } from '../../shared/src/cards.ts'
 import * as engine from './engine.ts'
+import { botAct, botToAct } from './bot.ts'
 import { redactFor } from './redact.ts'
 import { createRoom, deleteRoom, getRoom } from './rooms.ts'
 
@@ -32,6 +33,36 @@ function broadcast(game: Game) {
     const sid = socketsByPlayer.get(p.id)
     if (sid) io.to(sid).emit('state', redactFor(game, p.id))
   }
+  scheduleBot(game)
+}
+
+// The CPU acts one step at a time on a short delay so humans can follow the
+// plays. Every broadcast re-checks whether a bot owes the game an action.
+const botTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function scheduleBot(game: Game) {
+  if (botTimers.has(game.code)) return
+  // Pause the CPU while no human is connected (nobody is watching).
+  if (!game.players.some((p) => !p.bot && !p.left && p.connected)) return
+  if (!botToAct(game)) return
+  const code = game.code
+  botTimers.set(
+    code,
+    setTimeout(() => {
+      botTimers.delete(code)
+      const g = getRoom(code)
+      if (!g) return
+      const actor = botToAct(g)
+      if (actor) {
+        try {
+          botAct(g, actor)
+        } catch (err) {
+          console.error(`bot error in room ${code}:`, err)
+        }
+      }
+      broadcast(g)
+    }, 800),
+  )
 }
 
 function bind(socket: Socket, game: Game, playerId: string) {
@@ -88,6 +119,9 @@ io.on('connection', (socket) => {
 
   socket.on('startGame', (_: unknown, ack: (a: Ack) => void) =>
     ack(withGame(socket, (g, pid) => engine.startGame(g, pid))))
+
+  socket.on('startWithBot', (_: unknown, ack: (a: Ack) => void) =>
+    ack(withGame(socket, (g, pid) => engine.startWithBot(g, pid))))
 
   socket.on('playMoney', ({ cardId }: { cardId: string }, ack: (a: Ack) => void) =>
     ack(withGame(socket, (g, pid) => engine.playMoney(g, pid, cardId))))

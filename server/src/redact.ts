@@ -59,6 +59,7 @@ export function redactFor(game: Game, playerId: string): ClientGame {
       connected: p.connected,
       left: p.left,
       isHost: p.id === game.hostId,
+      isBot: p.bot,
       handCount: p.hand.length,
       bank: p.bank,
       piles: p.piles,

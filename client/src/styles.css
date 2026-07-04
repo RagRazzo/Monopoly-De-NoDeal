@@ -126,6 +126,10 @@ input {
   gap: 10px;
 }
 
+.cpu-btn {
+  justify-content: center;
+}
+
 .rules summary {
   cursor: pointer;
   color: #9ca3af;

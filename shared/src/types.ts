@@ -19,6 +19,7 @@ export interface Player {
   seat: number
   connected: boolean
   left: boolean
+  bot: boolean
   hand: Card[]
   bank: Card[]
   piles: Pile[]
@@ -73,6 +74,7 @@ export interface ClientPlayer {
   connected: boolean
   left: boolean
   isHost: boolean
+  isBot: boolean
   handCount: number
   bank: Card[]
   piles: Pile[]
