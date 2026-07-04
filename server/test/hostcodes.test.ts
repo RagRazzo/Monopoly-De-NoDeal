@@ -49,15 +49,17 @@ test('add / disable / delete lifecycle', () => {
 })
 
 test('usage is tracked per code', () => {
+  // The usage log persists across runs (by design), so assert deltas.
   const code = 'zzz-usage-code'
   try {
     assert.equal(addCode(code), null)
+    const before = listCodeStats().find((s) => s.code === code)?.uses ?? 0
     const at = Date.now()
     recordUsage({ at, code, location: 'America/Toronto · en-US', ip: '1.2.3.4', room: 'ZZZZ1' })
     recordUsage({ at: at + 1000, code, location: 'America/Toronto · en-US', ip: '1.2.3.4', room: 'ZZZZ2' })
     const stat = listCodeStats().find((s) => s.code === code)
     assert.ok(stat)
-    assert.equal(stat.uses, 2)
+    assert.equal(stat.uses, before + 2)
     assert.equal(stat.lastUsedAt, at + 1000)
   } finally {
     deleteCode(code)
