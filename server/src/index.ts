@@ -28,10 +28,12 @@ const io = new Server(httpServer, { cors: { origin: true } })
 
 const clientDist = path.resolve(__dirname, '../../client/dist')
 const bootedAt = Date.now()
+const instanceId = crypto.randomUUID().slice(0, 8) // differs per running instance
 app.get('/healthz', (_req, res) =>
   res.json({
     ok: true,
     revision: process.env.K_REVISION ?? 'dev', // Cloud Run sets this per deploy
+    instanceId, // if this differs between refreshes, MORE THAN ONE instance is running
     durableHostCodes: durableStatus, // 'off' | 'ok' | 'failed: <errno>'
     uptimeSeconds: Math.round((Date.now() - bootedAt) / 1000),
     activeRooms: [...allRooms()].length,
@@ -174,6 +176,7 @@ io.on('connection', (socket) => {
     const player = game?.players.find((p) => p.token === token && !p.left)
     if (!game || !player) return ack({ ok: false, error: 'Could not rejoin' })
     player.connected = true
+    player.disconnectedAt = undefined
     bind(socket, game, player.id)
     ack({ ok: true, code: game.code, playerId: player.id, token })
     broadcast(game)
@@ -237,10 +240,13 @@ io.on('connection', (socket) => {
     const game = getRoom(data.code)
     const player = game?.players.find((p) => p.id === data.playerId)
     if (!game || !player || player.left) return
+    // Keep their seat: phones background the tab while sharing the invite
+    // link, which drops the socket. The room sweeper removes lobby players
+    // only after a long grace period, and rejoin restores them instantly.
     player.connected = false
+    player.disconnectedAt = Date.now()
     game.log.push(`${player.name} disconnected`)
     game.logSeq++
-    if (game.phase === 'lobby') engine.removePlayer(game, player.id)
     broadcast(game)
   })
 })

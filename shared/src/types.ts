@@ -20,6 +20,7 @@ export interface Player {
   name: string
   seat: number
   connected: boolean
+  disconnectedAt?: number
   left: boolean
   bot: boolean
   hand: Card[]
