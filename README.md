@@ -19,6 +19,10 @@ can cheat by editing the client.
   portrait screens, a compact HUD with an on-demand log panel, safe-area/notch
   insets, dynamic-viewport-height layout, and a capped pixel ratio for phone
   GPUs.
+- **Hand & table tools**: screen-size-aware hand fan with flicker-free depth
+  layering, ◀ ▶ reordering of your hand, a 🔍 full-size card zoom, and
+  tappable nameplates that open any player's table (piles + bank) as zoomable
+  card thumbnails.
 - **Up to 6 players** with a *proportionally scaled deck*: the base 106-card
   deck grows to 144 cards for 5 players and 170 for 6, keeping every card
   type's draw probability faithful to the base game while adding enough

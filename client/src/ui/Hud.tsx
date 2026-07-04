@@ -3,7 +3,36 @@ import type { ClientGame } from '@shared/types'
 import { leaveRoom, send } from '../net'
 import { useStore } from '../store'
 import { actionsForCard, moveWildFlow } from './actions'
-import { DiscardModal, JsnModal, PaymentModal, PromptModal } from './Modals'
+import {
+  DiscardModal,
+  InspectCardModal,
+  InspectPlayerModal,
+  JsnModal,
+  PaymentModal,
+  PromptModal,
+} from './Modals'
+
+// Reorder / zoom controls for the selected hand card — available on anyone's
+// turn, since arranging and reading your hand is always allowed.
+function CardTools({ game }: { game: ClientGame }) {
+  const selectedCardId = useStore((s) => s.selectedCardId)
+  const card = game.yourHand.find((c) => c.id === selectedCardId)
+  if (!card) return null
+  const { moveCard, setInspectCard } = useStore.getState()
+  return (
+    <div className="card-tools">
+      <button className="option-btn small" onClick={() => moveCard(card.id, -1)} title="Move left in hand">
+        ◀
+      </button>
+      <button className="option-btn small" onClick={() => setInspectCard(card)}>
+        🔍 View card
+      </button>
+      <button className="option-btn small" onClick={() => moveCard(card.id, 1)} title="Move right in hand">
+        ▶
+      </button>
+    </div>
+  )
+}
 
 function LogPanel({ game, open }: { game: ClientGame; open: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -116,12 +145,17 @@ export function Hud({ game }: { game: ClientGame }) {
       {!connected && <div className="pending-banner offline">Reconnecting…</div>}
       <PendingBanner game={game} />
       <LogPanel game={game} open={logOpen} />
-      <ActionBar game={game} />
+      <div className="bottom-stack">
+        <CardTools game={game} />
+        <ActionBar game={game} />
+      </div>
       {error && <div className="toast">{error}</div>}
       <PromptModal />
       <PaymentModal game={game} />
       <JsnModal game={game} />
       <DiscardModal game={game} />
+      <InspectPlayerModal game={game} />
+      <InspectCardModal />
       <WinnerOverlay game={game} />
     </div>
   )

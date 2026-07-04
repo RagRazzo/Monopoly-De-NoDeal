@@ -5,16 +5,15 @@ import type { PerspectiveCamera } from 'three'
 import { COLOR_INFO } from '@shared/cards'
 import { isPileComplete } from '@shared/logic'
 import type { ClientGame } from '@shared/types'
+import { orderHand, useStore } from '../store'
 import { Card3D } from './Card3D'
-import { computePlacements, seatPositions } from './layout'
+import { computePlacements, seatPositions, viewFit } from './layout'
 
 // Pulls the camera up/back and widens the FOV on narrow (portrait/mobile)
 // viewports so the whole table stays in frame.
 function useViewFit(): { fit: number; fov: number; aspect: number } {
   const aspect = useThree((s) => s.size.width / Math.max(1, s.size.height))
-  const fit = aspect >= 1.35 ? 1 : Math.min(1.55, Math.pow(1.35 / aspect, 0.5))
-  const fov = aspect < 1 ? 60 : 46
-  return { fit, fov, aspect }
+  return { ...viewFit(aspect), aspect }
 }
 
 function CameraRig({ fit, fov }: { fit: number; fov: number }) {
@@ -62,7 +61,14 @@ function Nameplates({ game }: { game: ClientGame }) {
         const sets = new Set(p.piles.filter(isPileComplete).map((pl) => pl.color))
         return (
           <Html key={p.id} position={[x, 0.9, z]} center zIndexRange={[10, 0]}>
-            <div className={`nameplate ${isTurn ? 'turn' : ''} ${p.left || !p.connected ? 'away' : ''}`}>
+            <div
+              className={`nameplate ${isTurn ? 'turn' : ''} ${p.left || !p.connected ? 'away' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                useStore.getState().setInspectPlayer(p.id)
+              }}
+              title="Tap to inspect this player's cards"
+            >
               <div className="np-name">
                 <span className={`dot ${p.connected && !p.left ? 'on' : 'off'}`} />
                 {p.isBot ? '🤖 ' : ''}
@@ -87,7 +93,11 @@ function Nameplates({ game }: { game: ClientGame }) {
 
 export function Scene({ game }: { game: ClientGame }) {
   const { fit, fov, aspect } = useViewFit()
-  const placements = useMemo(() => computePlacements(game, aspect, fit), [game, aspect, fit])
+  const handOrder = useStore((s) => s.handOrder)
+  const placements = useMemo(
+    () => computePlacements(game, aspect, fit, orderHand(game.yourHand, handOrder)),
+    [game, aspect, fit, handOrder],
+  )
   return (
     <>
       <ambientLight intensity={0.85} />

@@ -257,6 +257,19 @@ function toTexture(canvas: HTMLCanvasElement): THREE.CanvasTexture {
   return tex
 }
 
+// Full-resolution card image for the 2D inspect/zoom overlays.
+const urlCache = new Map<string, string>()
+export function getCardImageURL(card: Card): string {
+  const key = cardKey(card)
+  let url = urlCache.get(key)
+  if (!url) {
+    const tex = getCardTexture(card)
+    url = (tex.image as HTMLCanvasElement).toDataURL('image/png')
+    urlCache.set(key, url)
+  }
+  return url
+}
+
 export function getCardTexture(card: Card): THREE.CanvasTexture {
   const key = cardKey(card)
   const hit = cache.get(key)

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { COLOR_INFO, cardLabel, type Card } from '@shared/cards'
+import { isPileComplete, pilePropertyCount } from '@shared/logic'
 import type { ClientGame, ClientPlayer } from '@shared/types'
+import { getCardImageURL } from '../game3d/textures'
 import { send } from '../net'
 import { useStore } from '../store'
 
@@ -116,6 +118,72 @@ export function JsnModal({ game }: { game: ClientGame }) {
             {iAmAttacker ? 'Let it go' : 'Accept'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Full-size zoom of a single card. Tap anywhere to close.
+export function InspectCardModal() {
+  const card = useStore((s) => s.inspectCard)
+  const close = () => useStore.getState().setInspectCard(null)
+  if (!card) return null
+  return (
+    <div className="modal-backdrop inspect-backdrop" onClick={close}>
+      <img className="inspect-card" src={getCardImageURL(card)} alt={cardLabel(card)} />
+      <div className="inspect-hint">Tap anywhere to close</div>
+    </div>
+  )
+}
+
+// Zoomed view of a player's table: their property piles and bank, with
+// tappable card thumbnails. Opened by tapping a nameplate.
+export function InspectPlayerModal({ game }: { game: ClientGame }) {
+  const playerId = useStore((s) => s.inspectPlayerId)
+  const close = () => useStore.getState().setInspectPlayer(null)
+  const player = game.players.find((p) => p.id === playerId)
+  if (!player) return null
+  const zoom = (c: Card) => useStore.getState().setInspectCard(c)
+  const bankTotal = player.bank.reduce((s, c) => s + c.value, 0)
+  return (
+    <div className="modal-backdrop" onClick={close}>
+      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
+        <h3>
+          {player.isBot ? '🤖 ' : ''}
+          {player.name}
+          {player.id === game.youId ? ' (you)' : ''}
+        </h3>
+        <p className="muted">
+          {player.handCount} card{player.handCount === 1 ? '' : 's'} in hand · {bankTotal}M banked
+        </p>
+        {player.piles.length === 0 && <p className="muted">No properties on the table yet.</p>}
+        {player.piles.map((pile) => (
+          <div key={pile.id} className="pile-group">
+            <div className="pile-head">
+              <span className="chip-color" style={{ background: COLOR_INFO[pile.color].hex }} />
+              {COLOR_INFO[pile.color].label} · {pilePropertyCount(pile)}/{COLOR_INFO[pile.color].setSize}
+              {isPileComplete(pile) && ' ✓ complete'}
+            </div>
+            <div className="thumb-row">
+              {pile.cards.map((c) => (
+                <img key={c.id} src={getCardImageURL(c)} alt={cardLabel(c)} onClick={() => zoom(c)} />
+              ))}
+            </div>
+          </div>
+        ))}
+        {player.bank.length > 0 && (
+          <div className="pile-group">
+            <div className="pile-head">🏦 Bank · {bankTotal}M</div>
+            <div className="thumb-row">
+              {player.bank.map((c) => (
+                <img key={c.id} src={getCardImageURL(c)} alt={cardLabel(c)} onClick={() => zoom(c)} />
+              ))}
+            </div>
+          </div>
+        )}
+        <button className="ghost-btn" onClick={close}>
+          Close
+        </button>
       </div>
     </div>
   )

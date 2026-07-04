@@ -14,6 +14,13 @@ export interface Placement {
 const SEAT_DIST = 4.4
 const FLAT: [number, number, number] = [-Math.PI / 2, 0, 0]
 
+// Camera fitting shared with the Scene: portrait screens push the camera
+// back (fit > 1) and widen the field of view.
+export function viewFit(aspect: number): { fit: number; fov: number } {
+  const fit = aspect >= 1.35 ? 1 : Math.min(1.55, Math.pow(1.35 / aspect, 0.5))
+  return { fit, fov: aspect < 1 ? 60 : 46 }
+}
+
 interface Frame {
   angle: number
   cx: number
@@ -83,7 +90,7 @@ function playerCards(out: Placement[], p: ClientPlayer, f: Frame, mine: boolean)
       out.push({
         key: `hand-${p.id}-${i}`,
         card: null,
-        pos: local(f, (i - (n - 1) / 2) * 0.32, 0.6 + i * 0.005, 1.35),
+        pos: local(f, (i - (n - 1) / 2) * 0.32, 0.6 + i * 0.02, 1.35 + i * 0.015),
         rot: [-0.9, 0, Math.PI / 2 - f.angle + (i - (n - 1) / 2) * 0.06],
         scale: 0.62,
       })
@@ -91,7 +98,12 @@ function playerCards(out: Placement[], p: ClientPlayer, f: Frame, mine: boolean)
   }
 }
 
-export function computePlacements(game: ClientGame, aspect = 1.78, fit = 1): Placement[] {
+export function computePlacements(
+  game: ClientGame,
+  aspect = 1.78,
+  fit = 1,
+  orderedHand?: Card[],
+): Placement[] {
   const out: Placement[] = []
   const seats = seatPositions(game)
 
@@ -124,24 +136,31 @@ export function computePlacements(game: ClientGame, aspect = 1.78, fit = 1): Pla
     playerCards(out, p, seats.get(p.id)!, p.id === game.youId)
   }
 
-  // My hand: an arc floating in front of the camera's default view. The
-  // whole arc tracks the camera fit factor (portrait screens push the
-  // camera back) and compresses horizontally on narrow viewports.
-  const hand = game.yourHand
+  // My hand: a fan floating in front of the camera's default view.
+  // - Card size adapts to the screen (smaller base scale on portrait).
+  // - The fan width is capped by what the camera can actually see at the
+  //   hand's depth, so cards never spill off-screen.
+  // - Each card sits at a strictly increasing depth (left under right,
+  //   like a real hand) so overlapping cards never z-fight/flicker.
+  const hand = orderedHand ?? game.yourHand
   const n = hand.length
-  const squeeze = Math.min(1, aspect / 1.6)
+  const { fov } = viewFit(aspect)
+  const handScale = (aspect < 1 ? 0.8 : 1.05) * fit
+  const dist = 6.7 * fit // approx camera-to-hand distance
+  const halfVisible = Math.tan((fov * Math.PI) / 360) * dist * aspect
+  const spread = Math.max(0, Math.min(2 * halfVisible - handScale - 0.3, (n - 1) * handScale * 0.72))
   hand.forEach((card, i) => {
     const t = n === 1 ? 0 : i / (n - 1) - 0.5
     out.push({
       key: card.id,
       card,
       pos: [
-        t * Math.min(6.4, n * 1.05) * squeeze * fit,
-        (3.1 + Math.cos(t * 2.4) * 0.25) * fit,
-        (6.9 + Math.abs(t) * 0.35) * fit,
+        t * spread,
+        (3.05 + Math.cos(t * 2.2) * 0.22) * fit,
+        (6.75 + i * 0.045) * fit,
       ],
-      rot: [-0.42, 0, -t * 0.28],
-      scale: 1.05 * fit,
+      rot: [-0.42, 0, -t * (aspect < 1 ? 0.38 : 0.28)],
+      scale: handScale,
       handCard: true,
     })
   })
