@@ -27,7 +27,14 @@ const httpServer = createServer(app)
 const io = new Server(httpServer, { cors: { origin: true } })
 
 const clientDist = path.resolve(__dirname, '../../client/dist')
-app.get('/healthz', (_req, res) => res.json({ ok: true }))
+const bootedAt = Date.now()
+app.get('/healthz', (_req, res) =>
+  res.json({
+    ok: true,
+    revision: process.env.K_REVISION ?? 'dev', // Cloud Run sets this per deploy
+    durableHostCodes: durableStorage,
+    uptimeSeconds: Math.round((Date.now() - bootedAt) / 1000),
+  }))
 app.use(express.static(clientDist))
 app.get('*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')))
 
