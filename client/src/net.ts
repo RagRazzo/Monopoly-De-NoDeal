@@ -49,7 +49,17 @@ function enter(event: 'createRoom' | 'joinRoom', payload: object) {
   })
 }
 
-export const createRoom = (name: string, adminCode: string) => enter('createRoom', { name, adminCode })
+function browserLocation(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? ''
+    return [tz, navigator.language].filter(Boolean).join(' · ')
+  } catch {
+    return ''
+  }
+}
+
+export const createRoom = (name: string, hostCode: string) =>
+  enter('createRoom', { name, hostCode, location: browserLocation() })
 export const joinRoom = (code: string, name: string) => enter('joinRoom', { code, name })
 
 export function send(event: string, payload: object = {}) {

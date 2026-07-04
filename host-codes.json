@@ -1,0 +1,22 @@
+{
+  "_readme": "Host codes required to CREATE a room (joining an existing room needs no code). Case-insensitive, surrounding spaces ignored. Disable a code by setting enabled to false, or add a new entry. The masterCode additionally unlocks the in-app host-code admin page (and also works as a host code). The server reads this file at startup; in-app edits apply immediately but reset to this file on the next deploy.",
+  "masterCode": "rougemount9raju",
+  "codes": [
+    {
+      "code": "rougemont",
+      "enabled": true
+    },
+    {
+      "code": "netflix",
+      "enabled": true
+    },
+    {
+      "code": "apple",
+      "enabled": true
+    },
+    {
+      "code": "peach",
+      "enabled": true
+    }
+  ]
+}

@@ -1,12 +1,34 @@
-import { useState } from 'react'
-import { createRoom, joinRoom } from '../net'
+import { useEffect, useState } from 'react'
+import { createRoom, joinRoom, socket } from '../net'
 import { toast, useStore } from '../store'
+import { AdminPage } from './AdminPage'
 
 export function Home() {
   const [name, setName] = useState(localStorage.getItem('nodeal.name') ?? '')
   const [code, setCode] = useState('')
-  const [adminCode, setAdminCode] = useState(localStorage.getItem('nodeal.admincode') ?? '')
+  const [hostCode, setHostCode] = useState(
+    localStorage.getItem('nodeal.hostcode') ?? localStorage.getItem('nodeal.admincode') ?? '',
+  )
+  const [isMaster, setIsMaster] = useState(false)
+  const [showAdmin, setShowAdmin] = useState(false)
   const error = useStore((s) => s.error)
+
+  // Reveal the admin button only when the entered host code is the master
+  // code (checked server-side so the master code never ships in the bundle).
+  useEffect(() => {
+    const entered = hostCode.trim()
+    if (entered.length < 6) {
+      setIsMaster(false)
+      return
+    }
+    const t = setTimeout(
+      () => socket.emit('adminCheck', { code: entered }, (a: { isMaster?: boolean }) => setIsMaster(!!a?.isMaster)),
+      300,
+    )
+    return () => clearTimeout(t)
+  }, [hostCode])
+
+  if (showAdmin) return <AdminPage master={hostCode.trim()} onBack={() => setShowAdmin(false)} />
 
   const withName = (fn: (name: string) => void) => {
     const n = name.trim()
@@ -17,9 +39,9 @@ export function Home() {
 
   const create = () =>
     withName((n) => {
-      if (!adminCode.trim()) return toast('Hosting needs an admin code — ask the app owner')
-      localStorage.setItem('nodeal.admincode', adminCode.trim())
-      createRoom(n, adminCode)
+      if (!hostCode.trim()) return toast('Hosting needs a host code — ask the app owner')
+      localStorage.setItem('nodeal.hostcode', hostCode.trim())
+      createRoom(n, hostCode)
     })
 
   return (
@@ -36,13 +58,18 @@ export function Home() {
           onChange={(e) => setName(e.target.value)}
         />
         <input
-          placeholder="Admin code (only needed to host)"
-          value={adminCode}
-          onChange={(e) => setAdminCode(e.target.value)}
+          placeholder="Host code (only needed to host)"
+          value={hostCode}
+          onChange={(e) => setHostCode(e.target.value)}
         />
         <button className="primary-btn big" onClick={create}>
           Create a room
         </button>
+        {isMaster && (
+          <button className="option-btn cpu-btn" onClick={() => setShowAdmin(true)}>
+            🛠 Manage host codes
+          </button>
+        )}
         <div className="join-row">
           <input
             placeholder="Room code"

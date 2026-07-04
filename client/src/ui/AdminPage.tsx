@@ -1,0 +1,114 @@
+import { useCallback, useEffect, useState } from 'react'
+import type { HostCodeStat, HostCodeUsageEvent } from '@shared/types'
+import { socket } from '../net'
+import { toast, useStore } from '../store'
+
+interface AdminData {
+  codes: HostCodeStat[]
+  recent: HostCodeUsageEvent[]
+}
+
+type AdminAck = ({ ok: true } & AdminData) | { ok: false; error: string }
+
+export function AdminPage({ master, onBack }: { master: string; onBack: () => void }) {
+  const [data, setData] = useState<AdminData | null>(null)
+  const [newCode, setNewCode] = useState('')
+  const error = useStore((s) => s.error)
+
+  const handle = useCallback((ack: AdminAck) => {
+    if (!ack.ok) return toast(ack.error)
+    setData({ codes: ack.codes, recent: ack.recent })
+  }, [])
+
+  useEffect(() => {
+    socket.emit('adminListCodes', { master }, handle)
+  }, [master, handle])
+
+  const fmt = (t: number | null) => (t ? new Date(t).toLocaleString() : 'never used')
+
+  return (
+    <div className="landing">
+      <div className="landing-card admin-card">
+        <h2>Host codes</h2>
+        <p className="muted">
+          Changes apply immediately, but reset to <code>host-codes.json</code> on the next deploy —
+          edit that file in the repo for permanent changes.
+        </p>
+        {!data ? (
+          <p className="muted">Loading…</p>
+        ) : (
+          <>
+            <ul className="code-list">
+              {data.codes.map((c) => (
+                <li key={c.code} className="code-row">
+                  <span className={`pill ${c.enabled ? 'on' : 'off'}`}>{c.enabled ? 'ON' : 'OFF'}</span>
+                  <span className="code-name">
+                    {c.code}
+                    <small className="muted">
+                      {c.uses} room{c.uses === 1 ? '' : 's'} · {fmt(c.lastUsedAt)}
+                    </small>
+                  </span>
+                  <button
+                    className="option-btn small"
+                    onClick={() => socket.emit('adminSetCode', { master, code: c.code, enabled: !c.enabled }, handle)}
+                  >
+                    {c.enabled ? 'Disable' : 'Enable'}
+                  </button>
+                  <button
+                    className="option-btn small danger"
+                    onClick={() => {
+                      if (window.confirm(`Delete host code "${c.code}"?`))
+                        socket.emit('adminDeleteCode', { master, code: c.code }, handle)
+                    }}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="join-row">
+              <input
+                placeholder="New host code"
+                maxLength={40}
+                value={newCode}
+                onChange={(e) => setNewCode(e.target.value)}
+              />
+              <button
+                className="primary-btn"
+                onClick={() => {
+                  if (!newCode.trim()) return toast('Type the new code first')
+                  socket.emit('adminAddCode', { master, code: newCode }, (a: AdminAck) => {
+                    handle(a)
+                    if (a.ok) setNewCode('')
+                  })
+                }}
+              >
+                Add
+              </button>
+            </div>
+            <h3>Recent room creations</h3>
+            {data.recent.length === 0 ? (
+              <p className="muted">No rooms created yet (history resets on redeploy).</p>
+            ) : (
+              <ul className="usage-list">
+                {data.recent.map((u, i) => (
+                  <li key={i} className="usage-row">
+                    <span className="code-name">{u.code}</span>
+                    <span>{new Date(u.at).toLocaleString()}</span>
+                    <span className="muted">
+                      {u.location || 'unknown location'} · {u.ip} · room {u.room}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+        <button className="ghost-btn" onClick={onBack}>
+          ← Back to home
+        </button>
+        {error && <div className="toast inline">{error}</div>}
+      </div>
+    </div>
+  )
+}

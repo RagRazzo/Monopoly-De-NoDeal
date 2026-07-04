@@ -6,7 +6,16 @@ import { Server, type Socket } from 'socket.io'
 import type { Ack, Game, PlayActionOpts } from '../../shared/src/types.ts'
 import type { Color } from '../../shared/src/cards.ts'
 import * as engine from './engine.ts'
-import { isValidAdminCode } from './adminCodes.ts'
+import {
+  addCode,
+  deleteCode,
+  isMasterCode,
+  isValidHostCode,
+  listCodeStats,
+  recentUsage,
+  recordUsage,
+  setCodeEnabled,
+} from './hostCodes.ts'
 import { botAct, botToAct, sweepTimeouts } from './bot.ts'
 import { redactFor } from './redact.ts'
 import { allRooms, createRoom, deleteRoom, getRoom } from './rooms.ts'
@@ -89,14 +98,54 @@ function withGame(
 }
 
 io.on('connection', (socket) => {
-  socket.on('createRoom', ({ name, adminCode }: { name: string; adminCode?: string }, ack: (a: Ack<{ code: string; playerId: string; token: string }>) => void) => {
-    if (!isValidAdminCode(String(adminCode ?? ''))) {
-      return ack({ ok: false, error: 'Invalid admin code — ask the app owner for one to host games' })
+  socket.on('createRoom', ({ name, hostCode, location }: { name: string; hostCode?: string; location?: string }, ack: (a: Ack<{ code: string; playerId: string; token: string }>) => void) => {
+    const entered = String(hostCode ?? '')
+    if (!isValidHostCode(entered)) {
+      return ack({ ok: false, error: 'Invalid host code — ask the app owner for one to host games' })
     }
     const { game, playerId, token } = createRoom(String(name ?? ''))
     bind(socket, game, playerId)
+    const fwd = socket.handshake.headers['x-forwarded-for']
+    const ip = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(',')[0]?.trim() || socket.handshake.address
+    recordUsage({
+      at: Date.now(),
+      code: entered.trim().toLowerCase(),
+      location: String(location ?? '').slice(0, 120),
+      ip,
+      room: game.code,
+    })
     ack({ ok: true, code: game.code, playerId, token })
     broadcast(game)
+  })
+
+  // ---- Host-code admin (every call re-checks the master code) ----
+  type AdminAck = Ack<{ codes: ReturnType<typeof listCodeStats>; recent: ReturnType<typeof recentUsage> }>
+  const adminPayload = (): AdminAck => ({ ok: true, codes: listCodeStats(), recent: recentUsage(100) })
+
+  socket.on('adminCheck', ({ code }: { code?: string }, ack: (a: { isMaster: boolean }) => void) =>
+    ack({ isMaster: isMasterCode(String(code ?? '')) }))
+
+  socket.on('adminListCodes', ({ master }: { master?: string }, ack: (a: AdminAck) => void) => {
+    if (!isMasterCode(String(master ?? ''))) return ack({ ok: false, error: 'Not authorized' })
+    ack(adminPayload())
+  })
+
+  socket.on('adminAddCode', ({ master, code }: { master?: string; code?: string }, ack: (a: AdminAck) => void) => {
+    if (!isMasterCode(String(master ?? ''))) return ack({ ok: false, error: 'Not authorized' })
+    const err = addCode(String(code ?? ''))
+    ack(err ? { ok: false, error: err } : adminPayload())
+  })
+
+  socket.on('adminSetCode', ({ master, code, enabled }: { master?: string; code?: string; enabled?: boolean }, ack: (a: AdminAck) => void) => {
+    if (!isMasterCode(String(master ?? ''))) return ack({ ok: false, error: 'Not authorized' })
+    const err = setCodeEnabled(String(code ?? ''), !!enabled)
+    ack(err ? { ok: false, error: err } : adminPayload())
+  })
+
+  socket.on('adminDeleteCode', ({ master, code }: { master?: string; code?: string }, ack: (a: AdminAck) => void) => {
+    if (!isMasterCode(String(master ?? ''))) return ack({ ok: false, error: 'Not authorized' })
+    const err = deleteCode(String(code ?? ''))
+    ack(err ? { ok: false, error: err } : adminPayload())
   })
 
   socket.on('joinRoom', ({ code, name }: { code: string; name: string }, ack: (a: Ack<{ code: string; playerId: string; token: string }>) => void) => {

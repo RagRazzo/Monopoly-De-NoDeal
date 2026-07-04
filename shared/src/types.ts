@@ -118,6 +118,21 @@ export interface ClientGame {
   responseDeadline: number | null
 }
 
+export interface HostCodeStat {
+  code: string
+  enabled: boolean
+  uses: number
+  lastUsedAt: number | null
+}
+
+export interface HostCodeUsageEvent {
+  at: number
+  code: string
+  location: string // browser-reported timezone + language
+  ip: string
+  room: string
+}
+
 export interface PlayActionOpts {
   targetPlayerId?: string
   targetCardId?: string
