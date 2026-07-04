@@ -5,13 +5,23 @@ import { AdminPage } from './AdminPage'
 
 export function Home() {
   const [name, setName] = useState(localStorage.getItem('nodeal.name') ?? '')
-  const [code, setCode] = useState('')
+  // Invite links (…/?join=CODE) pre-fill the room code.
+  const [code, setCode] = useState(() =>
+    (new URLSearchParams(window.location.search).get('join') ?? '').toUpperCase().slice(0, 5),
+  )
   const [hostCode, setHostCode] = useState(
     localStorage.getItem('nodeal.hostcode') ?? localStorage.getItem('nodeal.admincode') ?? '',
   )
   const [isMaster, setIsMaster] = useState(false)
   const [showAdmin, setShowAdmin] = useState(false)
   const error = useStore((s) => s.error)
+
+  // Drop the ?join= param from the address bar once consumed.
+  useEffect(() => {
+    if (window.location.search.includes('join=')) {
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }, [])
 
   // Reveal the admin button only when the entered host code is the master
   // code (checked server-side so the master code never ships in the bundle).

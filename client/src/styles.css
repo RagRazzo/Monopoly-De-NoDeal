@@ -130,6 +130,16 @@ input {
   justify-content: center;
 }
 
+.invite-row {
+  display: flex;
+  gap: 10px;
+}
+
+.invite-btn {
+  flex: 1;
+  justify-content: center;
+}
+
 .rules summary {
   cursor: pointer;
   color: #9ca3af;
