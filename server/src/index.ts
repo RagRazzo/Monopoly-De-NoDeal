@@ -34,6 +34,7 @@ app.get('/healthz', (_req, res) =>
     revision: process.env.K_REVISION ?? 'dev', // Cloud Run sets this per deploy
     durableHostCodes: durableStorage,
     uptimeSeconds: Math.round((Date.now() - bootedAt) / 1000),
+    activeRooms: [...allRooms()].length,
   }))
 app.use(express.static(clientDist))
 app.get('*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')))
