@@ -245,24 +245,72 @@ input {
 }
 
 .timer-pill {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
   background: #10151b;
-  border: 1px solid #2a3441;
+  border: 2px solid #2a3441;
   border-radius: 999px;
-  padding: 2px 10px;
-  font-weight: 700;
+  padding: 3px 12px;
+  font-size: 15px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.timer-pill.low {
-  color: #f87171;
-  border-color: #f87171;
-  animation: timer-pulse 1s infinite;
+.timer-text {
+  position: relative;
+  z-index: 1;
 }
 
-@keyframes timer-pulse {
+/* Depleting fill behind the number */
+.timer-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  transition: width 0.5s linear, background 0.5s;
+}
+
+.timer-pill.calm {
+  color: #4ade80;
+  border-color: #2f5e42;
+}
+
+.timer-pill.calm .timer-bar {
+  background: rgba(74, 222, 128, 0.16);
+}
+
+.timer-pill.warn {
+  color: #fbbf24;
+  border-color: #b4870f;
+}
+
+.timer-pill.warn .timer-bar {
+  background: rgba(251, 191, 36, 0.2);
+}
+
+.timer-pill.low {
+  color: #fff;
+  border-color: #ef4444;
+  font-size: 17px;
+  animation: timer-thump 0.9s ease-in-out infinite;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.55);
+}
+
+.timer-pill.low .timer-bar {
+  background: rgba(239, 68, 68, 0.55);
+}
+
+@keyframes timer-thump {
+  0%,
+  100% {
+    transform: scale(1);
+  }
   50% {
-    opacity: 0.5;
+    transform: scale(1.12);
   }
 }
 
