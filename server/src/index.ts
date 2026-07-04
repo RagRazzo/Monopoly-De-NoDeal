@@ -6,6 +6,7 @@ import { Server, type Socket } from 'socket.io'
 import type { Ack, Game, PlayActionOpts } from '../../shared/src/types.ts'
 import type { Color } from '../../shared/src/cards.ts'
 import * as engine from './engine.ts'
+import { isValidAdminCode } from './adminCodes.ts'
 import { botAct, botToAct, sweepTimeouts } from './bot.ts'
 import { redactFor } from './redact.ts'
 import { allRooms, createRoom, deleteRoom, getRoom } from './rooms.ts'
@@ -88,7 +89,10 @@ function withGame(
 }
 
 io.on('connection', (socket) => {
-  socket.on('createRoom', ({ name }: { name: string }, ack: (a: Ack<{ code: string; playerId: string; token: string }>) => void) => {
+  socket.on('createRoom', ({ name, adminCode }: { name: string; adminCode?: string }, ack: (a: Ack<{ code: string; playerId: string; token: string }>) => void) => {
+    if (!isValidAdminCode(String(adminCode ?? ''))) {
+      return ack({ ok: false, error: 'Invalid admin code — ask the app owner for one to host games' })
+    }
     const { game, playerId, token } = createRoom(String(name ?? ''))
     bind(socket, game, playerId)
     ack({ ok: true, code: game.code, playerId, token })

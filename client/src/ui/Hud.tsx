@@ -86,11 +86,18 @@ function ActionBar({ game }: { game: ClientGame }) {
   return (
     <div className="action-bar">
       {card && game.playsLeft > 0 ? (
-        actionsForCard(game, card).map((a, i) => (
-          <button key={i} className={a.primary ? 'primary-btn' : 'option-btn'} onClick={a.onClick}>
-            {a.label}
-          </button>
-        ))
+        <>
+          {actionsForCard(game, card).map((a, i) => (
+            <button key={i} className={a.primary ? 'primary-btn' : 'option-btn'} onClick={a.onClick}>
+              {a.label}
+            </button>
+          ))}
+          {(card.kind === 'property' || card.kind === 'wild') && (
+            <span className="muted bank-hint">
+              Properties can't be banked — their value counts when you pay opponents
+            </span>
+          )}
+        </>
       ) : (
         <span className="muted">
           {game.playsLeft > 0 ? 'Pick a card from your hand, or end your turn' : 'No plays left — end your turn'}

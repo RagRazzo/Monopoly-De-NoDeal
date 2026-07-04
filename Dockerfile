@@ -18,6 +18,7 @@ COPY server/package.json server/
 RUN npm install --omit=dev --no-audit --no-fund --workspace server
 COPY server server
 COPY shared shared
+COPY admin-codes.json ./
 COPY --from=build /app/client/dist client/dist
 EXPOSE 8080
 CMD ["node", "--experimental-strip-types", "server/src/index.ts"]

@@ -49,7 +49,7 @@ function enter(event: 'createRoom' | 'joinRoom', payload: object) {
   })
 }
 
-export const createRoom = (name: string) => enter('createRoom', { name })
+export const createRoom = (name: string, adminCode: string) => enter('createRoom', { name, adminCode })
 export const joinRoom = (code: string, name: string) => enter('joinRoom', { code, name })
 
 export function send(event: string, payload: object = {}) {

@@ -31,6 +31,11 @@ can cheat by editing the client.
 - **Private rooms**: 5-letter codes, nickname-only (no accounts), reconnect
   support (rejoin token in localStorage), host tools for stuck/disconnected
   players.
+- **Admin-gated hosting**: creating a room requires an admin code (joining
+  needs none), so having the app URL alone doesn't let strangers start
+  games. Codes live in [`admin-codes.json`](admin-codes.json) at the repo
+  root — edit that file to add/disable codes (case-insensitive; takes effect
+  on the next deploy, since the server reads it at startup).
 - **Solo mode vs CPU**: while the host is alone in the lobby they can start a
   game against a rule-based CPU opponent (the option disappears the moment a
   real player joins). The CPU uses a fixed heuristic strategy — no

@@ -5,6 +5,7 @@ import { toast, useStore } from '../store'
 export function Home() {
   const [name, setName] = useState(localStorage.getItem('nodeal.name') ?? '')
   const [code, setCode] = useState('')
+  const [adminCode, setAdminCode] = useState(localStorage.getItem('nodeal.admincode') ?? '')
   const error = useStore((s) => s.error)
 
   const withName = (fn: (name: string) => void) => {
@@ -13,6 +14,13 @@ export function Home() {
     localStorage.setItem('nodeal.name', n)
     fn(n)
   }
+
+  const create = () =>
+    withName((n) => {
+      if (!adminCode.trim()) return toast('Hosting needs an admin code — ask the app owner')
+      localStorage.setItem('nodeal.admincode', adminCode.trim())
+      createRoom(n, adminCode)
+    })
 
   return (
     <div className="landing">
@@ -27,7 +35,12 @@ export function Home() {
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <button className="primary-btn big" onClick={() => withName(createRoom)}>
+        <input
+          placeholder="Admin code (only needed to host)"
+          value={adminCode}
+          onChange={(e) => setAdminCode(e.target.value)}
+        />
+        <button className="primary-btn big" onClick={create}>
           Create a room
         </button>
         <div className="join-row">
