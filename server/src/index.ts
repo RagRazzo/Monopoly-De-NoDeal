@@ -9,6 +9,7 @@ import * as engine from './engine.ts'
 import {
   addCode,
   deleteCode,
+  durableStorage,
   isMasterCode,
   isValidHostCode,
   listCodeStats,
@@ -119,8 +120,8 @@ io.on('connection', (socket) => {
   })
 
   // ---- Host-code admin (every call re-checks the master code) ----
-  type AdminAck = Ack<{ codes: ReturnType<typeof listCodeStats>; recent: ReturnType<typeof recentUsage> }>
-  const adminPayload = (): AdminAck => ({ ok: true, codes: listCodeStats(), recent: recentUsage(100) })
+  type AdminAck = Ack<{ codes: ReturnType<typeof listCodeStats>; recent: ReturnType<typeof recentUsage>; durable: boolean }>
+  const adminPayload = (): AdminAck => ({ ok: true, codes: listCodeStats(), recent: recentUsage(100), durable: durableStorage })
 
   socket.on('adminCheck', ({ code }: { code?: string }, ack: (a: { isMaster: boolean }) => void) =>
     ack({ isMaster: isMasterCode(String(code ?? '')) }))

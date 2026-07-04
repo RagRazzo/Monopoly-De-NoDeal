@@ -1,12 +1,17 @@
 // Host-code gate + management + usage tracking.
 //
-// Codes live in host-codes.json at the repo root (durable source of truth,
-// loaded at startup). The in-app admin page mutates the in-memory list and
-// writes the file back, so changes apply immediately — but the container
-// filesystem is ephemeral, so they reset to the repo file on redeploy.
+// Two storage modes:
+// - Default: host-codes.json at the repo root (baked into the image).
+//   Admin-page edits write the container's copy, which is ephemeral.
+// - Durable: set DATA_DIR (e.g. a Cloud Storage bucket mounted at /data on
+//   Cloud Run). Codes + usage live there and survive deploys and restarts.
+//   On boot the durable file is seeded from the repo file if absent; on
+//   every boot the repo's masterCode wins and any NEW repo codes are merged
+//   in, while admin-page deletions are kept as tombstones so a redeploy
+//   cannot resurrect a deleted code.
 //
-// Usage events are kept in memory (capped), appended to a local JSONL file,
-// and echoed to stdout so Cloud Logging keeps a permanent trail.
+// Usage events are kept in memory (capped), appended to a JSONL file, and
+// echoed to stdout so Cloud Logging keeps a permanent trail either way.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,6 +20,7 @@ import type { HostCodeStat, HostCodeUsageEvent } from '../../shared/src/types.ts
 interface HostCodeEntry {
   code: string
   enabled: boolean
+  deleted?: boolean
 }
 
 interface CodesFile {
@@ -24,19 +30,55 @@ interface CodesFile {
 }
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
-const CODES_FILE = path.join(ROOT, 'host-codes.json')
-const USAGE_FILE = path.join(ROOT, 'host-code-usage.jsonl')
+const REPO_CODES_FILE = path.join(ROOT, 'host-codes.json')
+const DATA_DIR = process.env.DATA_DIR || null
+export const durableStorage = !!DATA_DIR
+const CODES_FILE = DATA_DIR ? path.join(DATA_DIR, 'host-codes.json') : REPO_CODES_FILE
+const USAGE_FILE = path.join(DATA_DIR ?? ROOT, 'host-code-usage.jsonl')
 
 const norm = (s: string) => s.trim().toLowerCase()
 
+function loadCodesFile(p: string): CodesFile | null {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(p, 'utf8')) as CodesFile
+    if (!Array.isArray(parsed.codes)) throw new Error('missing "codes" array')
+    return parsed
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.error(`Could not load host codes from ${p}:`, err)
+    }
+    return null
+  }
+}
+
+// Fail closed: with no readable file at all, nobody can create rooms.
 let file: CodesFile = { codes: [] }
-try {
-  file = JSON.parse(fs.readFileSync(CODES_FILE, 'utf8')) as CodesFile
-  if (!Array.isArray(file.codes)) throw new Error('missing "codes" array')
-} catch (err) {
-  // Fail closed: a broken/missing file means nobody can create rooms.
-  console.error(`Could not load host codes from ${CODES_FILE}:`, err)
-  file = { codes: [] }
+{
+  const repo = loadCodesFile(REPO_CODES_FILE)
+  if (!DATA_DIR) {
+    file = repo ?? { codes: [] }
+  } else {
+    const durable = loadCodesFile(CODES_FILE)
+    if (!durable) {
+      file = repo ?? { codes: [] }
+      save() // seed the durable copy from the repo file
+      console.log(`host-codes: seeded durable store at ${CODES_FILE}`)
+    } else {
+      file = durable
+      // The repo file stays authoritative for the master code, and new
+      // codes added via the repo are merged in (tombstones block revival).
+      if (repo?.masterCode) file.masterCode = repo.masterCode
+      let merged = 0
+      for (const e of repo?.codes ?? []) {
+        if (!file.codes.some((x) => norm(x.code) === norm(e.code))) {
+          file.codes.push({ code: e.code, enabled: e.enabled })
+          merged++
+        }
+      }
+      if (merged > 0) save()
+      console.log(`host-codes: loaded durable store from ${CODES_FILE} (${merged} repo code(s) merged)`)
+    }
+  }
 }
 
 function save() {
@@ -55,21 +97,28 @@ export function isValidHostCode(input: string): boolean {
   const needle = norm(input)
   if (!needle) return false
   if (isMasterCode(needle)) return true
-  return file.codes.some((e) => e.enabled && norm(e.code) === needle)
+  return file.codes.some((e) => e.enabled && !e.deleted && norm(e.code) === needle)
 }
 
 export function addCode(code: string): string | null {
   const c = norm(code)
   if (c.length < 3) return 'Host codes need at least 3 characters'
   if (c.length > 40) return 'Host code too long (max 40)'
-  if (isMasterCode(c) || file.codes.some((e) => norm(e.code) === c)) return 'That code already exists'
-  file.codes.push({ code: c, enabled: true })
+  if (isMasterCode(c)) return 'That code already exists'
+  const existing = file.codes.find((e) => norm(e.code) === c)
+  if (existing) {
+    if (!existing.deleted) return 'That code already exists'
+    existing.deleted = false // revive a previously deleted code
+    existing.enabled = true
+  } else {
+    file.codes.push({ code: c, enabled: true })
+  }
   save()
   return null
 }
 
 export function setCodeEnabled(code: string, enabled: boolean): string | null {
-  const entry = file.codes.find((e) => norm(e.code) === norm(code))
+  const entry = file.codes.find((e) => norm(e.code) === norm(code) && !e.deleted)
   if (!entry) return 'Code not found'
   entry.enabled = enabled
   save()
@@ -77,9 +126,15 @@ export function setCodeEnabled(code: string, enabled: boolean): string | null {
 }
 
 export function deleteCode(code: string): string | null {
-  const before = file.codes.length
-  file.codes = file.codes.filter((e) => norm(e.code) !== norm(code))
-  if (file.codes.length === before) return 'Code not found'
+  const entry = file.codes.find((e) => norm(e.code) === norm(code) && !e.deleted)
+  if (!entry) return 'Code not found'
+  if (durableStorage) {
+    // Tombstone so a redeploy's repo-merge cannot resurrect it.
+    entry.deleted = true
+    entry.enabled = false
+  } else {
+    file.codes = file.codes.filter((e) => e !== entry)
+  }
   save()
   return null
 }
@@ -117,7 +172,7 @@ export function recordUsage(event: HostCodeUsageEvent) {
 }
 
 export function listCodeStats(): HostCodeStat[] {
-  return file.codes.map((e) => {
+  return file.codes.filter((e) => !e.deleted).map((e) => {
     const events = usage.filter((u) => u.code === norm(e.code))
     return {
       code: e.code,

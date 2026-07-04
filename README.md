@@ -105,6 +105,33 @@ Notes:
   restart or redeploy).
 - The container listens on `$PORT` (Cloud Run sets it; defaults to 8080).
 
+### Persist host codes across deploys (recommended)
+
+Without this, host codes added/edited in the in-app admin page (and the
+usage history) reset to `host-codes.json` on every deploy or idle restart.
+Mount a Cloud Storage bucket as a volume and the server keeps its state
+there instead:
+
+1. **Create a bucket**: Console → Cloud Storage → Buckets → Create. Name it
+   (e.g. `nodeal-3d-data`), same region as the service, uniform access.
+2. **Grant access**: on the bucket → Permissions → Grant access → add the
+   service's runtime service account (shown on the Cloud Run service's
+   Security tab, usually `PROJECT_NUMBER-compute@developer.gserviceaccount.com`)
+   with role **Storage Object Admin**.
+3. **Mount it**: Cloud Run → nodeal-3d → Edit & deploy new revision →
+   **Volumes** tab → Add volume → type **Cloud Storage bucket** → name
+   `data`, pick the bucket. Then **Container** tab → Volume mounts → mount
+   `data` at `/data`.
+4. **Point the app at it**: same Container tab → Variables & secrets → add
+   env var `DATA_DIR=/data`. Deploy.
+
+On first boot the server seeds `/data/host-codes.json` from the repo file,
+then treats the bucket as the source of truth. Repo-file edits still work:
+the `masterCode` always comes from the repo, and codes newly added to the
+repo file are merged in on deploy — but codes deleted in the admin page
+stay deleted (tombstones). The admin page shows a ✅ when durable storage
+is active. Usage history is stored in the bucket too.
+
 ## Other easy/free deployment options
 
 Any host that runs a Docker container (or Node app) with WebSocket support

@@ -6,6 +6,7 @@ import { toast, useStore } from '../store'
 interface AdminData {
   codes: HostCodeStat[]
   recent: HostCodeUsageEvent[]
+  durable: boolean
 }
 
 type AdminAck = ({ ok: true } & AdminData) | { ok: false; error: string }
@@ -17,7 +18,7 @@ export function AdminPage({ master, onBack }: { master: string; onBack: () => vo
 
   const handle = useCallback((ack: AdminAck) => {
     if (!ack.ok) return toast(ack.error)
-    setData({ codes: ack.codes, recent: ack.recent })
+    setData({ codes: ack.codes, recent: ack.recent, durable: ack.durable })
   }, [])
 
   useEffect(() => {
@@ -30,10 +31,16 @@ export function AdminPage({ master, onBack }: { master: string; onBack: () => vo
     <div className="landing">
       <div className="landing-card admin-card">
         <h2>Host codes</h2>
-        <p className="muted">
-          Changes apply immediately, but reset to <code>host-codes.json</code> on the next deploy —
-          edit that file in the repo for permanent changes.
-        </p>
+        {data &&
+          (data.durable ? (
+            <p className="muted">✅ Durable storage is on — changes here survive deploys and restarts.</p>
+          ) : (
+            <p className="muted">
+              ⚠️ No durable storage: changes here reset to <code>host-codes.json</code> on the next
+              deploy or restart. Mount a Cloud Storage volume and set <code>DATA_DIR</code> to keep
+              them (see README).
+            </p>
+          ))}
         {!data ? (
           <p className="muted">Loading…</p>
         ) : (
