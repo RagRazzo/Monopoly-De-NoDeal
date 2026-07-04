@@ -1,5 +1,11 @@
 import { ACTION_INFO, cardLabel } from '../../shared/src/cards.ts'
-import type { ClientGame, ClientPending, Game } from '../../shared/src/types.ts'
+import {
+  RESPONSE_SECONDS,
+  TURN_SECONDS,
+  type ClientGame,
+  type ClientPending,
+  type Game,
+} from '../../shared/src/types.ts'
 
 function describePending(game: Game): ClientPending | null {
   const pending = game.pending
@@ -48,6 +54,18 @@ function describePending(game: Game): ClientPending | null {
 
 export function redactFor(game: Game, playerId: string): ClientGame {
   const you = game.players.find((p) => p.id === playerId)
+  const current = game.phase === 'playing' ? game.players[game.turnIndex] : undefined
+
+  let responseDeadline: number | null = null
+  if (game.pending && game.pendingSince) {
+    const awaitingId =
+      game.pending.kind === 'discard'
+        ? game.pending.playerId
+        : game.pending.demand.targets[game.pending.demand.index]?.awaiting
+    const awaiting = game.players.find((p) => p.id === awaitingId)
+    if (awaiting && !awaiting.bot) responseDeadline = game.pendingSince + RESPONSE_SECONDS * 1000
+  }
+
   return {
     code: game.code,
     phase: game.phase,
@@ -73,5 +91,9 @@ export function redactFor(game: Game, playerId: string): ClientGame {
     pending: describePending(game),
     winnerId: game.winnerId,
     log: game.log.slice(-60),
+    now: Date.now(),
+    turnDeadline:
+      current && !current.bot && game.turnStartedAt ? game.turnStartedAt + TURN_SECONDS * 1000 : null,
+    responseDeadline,
   }
 }

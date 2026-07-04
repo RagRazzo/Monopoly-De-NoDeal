@@ -15,7 +15,14 @@ import {
   pileRent,
   playerWorth,
 } from '../../shared/src/logic.ts'
-import type { Game, Pile, Player } from '../../shared/src/types.ts'
+import {
+  PLAYS_PER_TURN,
+  RESPONSE_SECONDS,
+  TURN_SECONDS,
+  type Game,
+  type Pile,
+  type Player,
+} from '../../shared/src/types.ts'
 import * as engine from './engine.ts'
 
 const ok = (err: string | null) => err === null
@@ -42,7 +49,7 @@ export function botAct(game: Game, botId: string) {
   const bot = game.players.find((p) => p.id === botId)
   if (!bot) return
   if (game.pending) {
-    respondPending(game, bot)
+    respondPendingFor(game, bot)
     return
   }
   if (game.playsLeft > 0 && tryBestPlay(game, bot)) return
@@ -82,7 +89,9 @@ function hasJsn(player: Player): boolean {
 
 // ---- Pending responses ----
 
-function respondPending(game: Game, bot: Player) {
+// Resolves the pending interaction on behalf of `bot` (also used as the CPU
+// stand-in when a human times out or disconnects mid-prompt).
+export function respondPendingFor(game: Game, bot: Player) {
   const pending = game.pending!
 
   if (pending.kind === 'discard') {
@@ -398,6 +407,25 @@ function tryBirthday(game: Game, bot: Player): boolean {
   return ok(engine.playAction(game, bot.id, card.id, {}))
 }
 
+// Constructive, non-interactive plays only (no rent/steals/demands) — used
+// when the CPU stands in for a timed-out human, so nobody gets attacked
+// "by" an absent player and no new prompts are created.
+export function tryBestSafePlay(game: Game, player: Player): boolean {
+  if (
+    tryPassGo(game, player) ||
+    tryBuilding(game, player) ||
+    tryProperty(game, player) ||
+    tryMoveWild(game, player) ||
+    tryBankMoney(game, player)
+  )
+    return true
+  // Last resort: bank the least useful non-defensive card.
+  const spare = player.hand
+    .filter((c) => c.kind === 'rent' || (c.kind === 'action' && c.action !== 'justsayno'))
+    .sort((a, b) => keepScore(a) - keepScore(b))[0]
+  return !!spare && ok(engine.playMoney(game, player.id, spare.id))
+}
+
 function tryBankMoney(game: Game, bot: Player): boolean {
   const money = bot.hand
     .filter((c) => c.kind === 'money')
@@ -413,4 +441,84 @@ function tryBankSurplus(game: Game, bot: Player): boolean {
     .filter((c) => c.kind === 'rent' || (c.kind === 'action' && c.action !== 'justsayno'))
     .sort((a, b) => keepScore(a) - keepScore(b))[0]
   return !!surplus && ok(engine.playMoney(game, bot.id, surplus.id))
+}
+
+// ---- Turn / response timeouts ----
+//
+// Called every second per room. Returns true when it changed the game (the
+// caller should re-broadcast).
+//
+// Rules:
+// - A human turn lasts TURN_SECONDS. On expiry: if they made zero plays the
+//   CPU makes one safe play for them, then the turn ends either way; any
+//   over-limit hand is auto-discarded (least valuable first).
+// - A pending prompt (payment / Just Say No / discard) aimed at a human is
+//   answered by the CPU after RESPONSE_SECONDS, so a stalled response can
+//   never freeze the table.
+// - While a prompt is open, the turn clock is paused: the wait is credited
+//   back to the current player when the prompt resolves.
+
+function pendingKeyOf(game: Game): string {
+  const p = game.pending!
+  if (p.kind === 'discard') return `d:${p.playerId}:${p.mustDiscard}`
+  const d = p.demand
+  const t = d.targets[d.index]
+  return `q:${d.action}:${d.index}:${t?.playerId}:${t?.stage}:${t?.awaiting}:${t?.jsnDepth}`
+}
+
+export function sweepTimeouts(game: Game, now = Date.now()): boolean {
+  if (game.phase !== 'playing') return false
+  // Nobody watching: leave the game frozen (same rule as the CPU scheduler).
+  if (!game.players.some((p) => !p.bot && !p.left && p.connected)) return false
+
+  if (game.pending) {
+    const key = pendingKeyOf(game)
+    if (game.pendingKey !== key) {
+      // New prompt (or the awaited responder changed): start its clock and
+      // broadcast so clients pick up the response deadline.
+      game.pendingKey = key
+      game.pendingSince = now
+      return true
+    }
+    const awaitingId =
+      game.pending.kind === 'discard'
+        ? game.pending.playerId
+        : game.pending.demand.targets[game.pending.demand.index]?.awaiting
+    const awaiting = game.players.find((p) => p.id === awaitingId)
+    if (!awaiting || awaiting.bot) return false
+    if (now - (game.pendingSince ?? now) < RESPONSE_SECONDS * 1000) return false
+    game.log.push(`⏱️ ${awaiting.name} took too long — CPU responded for them`)
+    respondPendingFor(game, awaiting)
+    game.updatedAt = now
+    return true
+  }
+
+  if (game.pendingKey) {
+    // A prompt just resolved: credit the wait back to the turn clock.
+    if (game.pendingSince) game.turnStartedAt += now - game.pendingSince
+    game.pendingKey = undefined
+    game.pendingSince = undefined
+    return true
+  }
+
+  const cur = game.players[game.turnIndex]
+  if (!cur || cur.bot || cur.left) return false
+  if (now - game.turnStartedAt < TURN_SECONDS * 1000) return false
+
+  const played = game.playsLeft < PLAYS_PER_TURN
+  if (!played && tryBestSafePlay(game, cur)) {
+    game.log.push(`⏱️ ${cur.name} timed out — CPU made a play for them`)
+  }
+  if (game.phase === 'playing') {
+    game.log.push(`⏱️ ${cur.name}'s turn ended automatically`)
+    engine.endTurn(game, cur.id)
+    // endTurn may have created a discard prompt (TS can't see the mutation
+    // through the call): the CPU discards their least valuable cards.
+    const afterEnd = game.pending as Game['pending']
+    if (afterEnd?.kind === 'discard' && afterEnd.playerId === cur.id) {
+      respondPendingFor(game, cur)
+    }
+  }
+  game.updatedAt = now
+  return true
 }

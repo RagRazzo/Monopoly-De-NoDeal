@@ -6,9 +6,9 @@ import { Server, type Socket } from 'socket.io'
 import type { Ack, Game, PlayActionOpts } from '../../shared/src/types.ts'
 import type { Color } from '../../shared/src/cards.ts'
 import * as engine from './engine.ts'
-import { botAct, botToAct } from './bot.ts'
+import { botAct, botToAct, sweepTimeouts } from './bot.ts'
 import { redactFor } from './redact.ts'
-import { createRoom, deleteRoom, getRoom } from './rooms.ts'
+import { allRooms, createRoom, deleteRoom, getRoom } from './rooms.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -181,6 +181,18 @@ io.on('connection', (socket) => {
     broadcast(game)
   })
 })
+
+// Turn/response timeout sweeper: once a second, let the CPU step in for
+// timed-out humans so one absent player can never freeze a table.
+setInterval(() => {
+  for (const game of allRooms()) {
+    try {
+      if (sweepTimeouts(game)) broadcast(game)
+    } catch (err) {
+      console.error(`timeout sweep error in room ${game.code}:`, err)
+    }
+  }
+}, 1000).unref()
 
 const port = Number(process.env.PORT) || 8080
 httpServer.listen(port, () => {

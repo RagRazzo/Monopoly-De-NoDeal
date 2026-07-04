@@ -5,6 +5,8 @@ export const MIN_PLAYERS = 2
 export const HAND_LIMIT = 7
 export const PLAYS_PER_TURN = 3
 export const SETS_TO_WIN = 3
+export const TURN_SECONDS = 90 // time to finish your turn before the CPU steps in
+export const RESPONSE_SECONDS = 45 // time to answer a payment/JSN/discard prompt
 
 export interface Pile {
   id: string
@@ -63,6 +65,10 @@ export interface Game {
   log: string[]
   pileSeq: number
   updatedAt: number
+  turnStartedAt: number
+  // Timeout bookkeeping maintained by the server sweeper.
+  pendingKey?: string
+  pendingSince?: number
 }
 
 // ---- Client-facing (redacted) types ----
@@ -107,6 +113,9 @@ export interface ClientGame {
   pending: ClientPending | null
   winnerId: string | null
   log: string[]
+  now: number // server clock at redaction time, for countdown skew correction
+  turnDeadline: number | null
+  responseDeadline: number | null
 }
 
 export interface PlayActionOpts {

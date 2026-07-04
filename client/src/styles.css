@@ -244,6 +244,28 @@ input {
   margin-left: auto;
 }
 
+.timer-pill {
+  background: #10151b;
+  border: 1px solid #2a3441;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.timer-pill.low {
+  color: #f87171;
+  border-color: #f87171;
+  animation: timer-pulse 1s infinite;
+}
+
+@keyframes timer-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
 .pending-banner {
   align-self: center;
   margin-top: 6px;

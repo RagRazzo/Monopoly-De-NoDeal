@@ -68,6 +68,7 @@ export function createGame(code: string, hostName: string, hostId: string, token
     log: [],
     pileSeq: 0,
     updatedAt: Date.now(),
+    turnStartedAt: 0,
   }
   addPlayer(game, hostName, hostId, token)
   return game
@@ -165,6 +166,7 @@ function beginTurn(game: Game) {
   }
   const player = currentPlayer(game)
   game.playsLeft = PLAYS_PER_TURN
+  game.turnStartedAt = Date.now()
   const count = player.hand.length === 0 ? 5 : 2
   drawCards(game, player, count)
   log(game, `${player.name}'s turn (drew ${count})`)

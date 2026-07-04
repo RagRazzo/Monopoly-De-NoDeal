@@ -12,6 +12,30 @@ import {
   PromptModal,
 } from './Modals'
 
+// Live countdown against a server-side deadline, corrected for the skew
+// between the server clock and this device's clock.
+function useCountdown(deadline: number | null, serverNow: number): number | null {
+  const [remaining, setRemaining] = useState<number | null>(null)
+  useEffect(() => {
+    if (!deadline) {
+      setRemaining(null)
+      return
+    }
+    const skew = serverNow - Date.now()
+    const tick = () => setRemaining(Math.max(0, Math.ceil((deadline - (Date.now() + skew)) / 1000)))
+    tick()
+    const id = setInterval(tick, 500)
+    return () => clearInterval(id)
+  }, [deadline, serverNow])
+  return remaining
+}
+
+function TimerPill({ deadline, serverNow }: { deadline: number | null; serverNow: number }) {
+  const seconds = useCountdown(deadline, serverNow)
+  if (seconds === null) return null
+  return <span className={`timer-pill ${seconds <= 15 ? 'low' : ''}`}>⏱ {seconds}s</span>
+}
+
 // Reorder / zoom controls for the selected hand card — available on anyone's
 // turn, since arranging and reading your hand is always allowed.
 function CardTools({ game }: { game: ClientGame }) {
@@ -93,6 +117,7 @@ function PendingBanner({ game }: { game: ClientGame }) {
   return (
     <div className="pending-banner">
       ⏳ {pending.description}
+      <TimerPill deadline={game.responseDeadline} serverNow={game.now} />
       {awaitingOffline && isHost && (
         <button className="option-btn small" onClick={() => send('forceResolve')}>
           Resolve for {awaiting.name} (offline)
@@ -132,6 +157,7 @@ export function Hud({ game }: { game: ClientGame }) {
         <span className={`turn-label ${myTurn ? 'my-turn' : ''}`}>
           {myTurn ? `Your turn — ${game.playsLeft} play${game.playsLeft === 1 ? '' : 's'} left` : `${turnPlayer?.name ?? '…'}'s turn`}
         </span>
+        {!game.pending && <TimerPill deadline={game.turnDeadline} serverNow={game.now} />}
         <span className="counts">
           Deck {game.deckCount} · Discard {game.discardCount}
         </span>

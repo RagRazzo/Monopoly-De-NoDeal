@@ -29,6 +29,10 @@ export function deleteRoom(code: string) {
   ROOMS.delete(code)
 }
 
+export function allRooms(): Iterable<Game> {
+  return ROOMS.values()
+}
+
 // Drop rooms with no activity for 2 hours, or finished for 15 minutes.
 const STALE_MS = 2 * 60 * 60 * 1000
 const FINISHED_MS = 15 * 60 * 1000
