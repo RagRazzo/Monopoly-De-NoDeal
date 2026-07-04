@@ -157,6 +157,6 @@ works. Good candidates:
 
 ---
 
-_Persistence verified against a Cloud Storage `DATA_DIR` mount (write-probe: ok)._
-
-_Durable host-code storage verified end-to-end: bucket mounted at `/data`, write probe ok, survival test rollout._
+_Durable host-code storage verified end-to-end in production: Cloud Storage
+bucket mounted at `/data`, boot write-probe ok, codes and usage history
+confirmed surviving real redeployments._
