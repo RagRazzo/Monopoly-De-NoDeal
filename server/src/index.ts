@@ -230,6 +230,7 @@ io.on('connection', (socket) => {
     if (!game || !player || player.left) return
     player.connected = false
     game.log.push(`${player.name} disconnected`)
+    game.logSeq++
     if (game.phase === 'lobby') engine.removePlayer(game, player.id)
     broadcast(game)
   })

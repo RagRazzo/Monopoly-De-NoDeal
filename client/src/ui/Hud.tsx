@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { RESPONSE_SECONDS, TURN_SECONDS, type ClientGame } from '@shared/types'
+import { cycleSoundMode, getSoundMode } from '../audio'
 import { leaveRoom, send } from '../net'
 import { useStore } from '../store'
 import { actionsForCard, moveWildFlow } from './actions'
@@ -169,6 +170,7 @@ export function Hud({ game }: { game: ClientGame }) {
   const error = useStore((s) => s.error)
   const connected = useStore((s) => s.connected)
   const [logOpen, setLogOpen] = useState(false)
+  const [sound, setSound] = useState(getSoundMode())
   const turnPlayer = game.players.find((p) => p.id === game.turnPlayerId)
   const myTurn = game.turnPlayerId === game.youId
 
@@ -183,6 +185,13 @@ export function Hud({ game }: { game: ClientGame }) {
         <span className="counts">
           Deck {game.deckCount} · Discard {game.discardCount}
         </span>
+        <button
+          className="ghost-btn small"
+          onClick={() => setSound(cycleSoundMode())}
+          title={sound === 'all' ? 'Music + sounds on' : sound === 'sfx' ? 'Sounds only' : 'Muted'}
+        >
+          {sound === 'all' ? '🔊' : sound === 'sfx' ? '🔈' : '🔇'}
+        </button>
         <button className="ghost-btn small log-toggle" onClick={() => setLogOpen((v) => !v)}>
           {logOpen ? 'Hide log' : 'Log'}
         </button>

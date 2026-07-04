@@ -488,6 +488,7 @@ export function sweepTimeouts(game: Game, now = Date.now()): boolean {
     if (!awaiting || awaiting.bot) return false
     if (now - (game.pendingSince ?? now) < RESPONSE_SECONDS * 1000) return false
     game.log.push(`⏱️ ${awaiting.name} took too long — CPU responded for them`)
+    game.logSeq++
     respondPendingFor(game, awaiting)
     game.updatedAt = now
     return true
@@ -508,9 +509,11 @@ export function sweepTimeouts(game: Game, now = Date.now()): boolean {
   const played = game.playsLeft < PLAYS_PER_TURN
   if (!played && tryBestSafePlay(game, cur)) {
     game.log.push(`⏱️ ${cur.name} timed out — CPU made a play for them`)
+    game.logSeq++
   }
   if (game.phase === 'playing') {
     game.log.push(`⏱️ ${cur.name}'s turn ended automatically`)
+    game.logSeq++
     engine.endTurn(game, cur.id)
     // endTurn may have created a discard prompt (TS can't see the mutation
     // through the call): the CPU discards their least valuable cards.

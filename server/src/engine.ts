@@ -35,6 +35,7 @@ const rng = () => crypto.randomInt(2 ** 47) / 2 ** 47
 
 function log(game: Game, msg: string) {
   game.log.push(msg)
+  game.logSeq++
   if (game.log.length > 200) game.log.splice(0, game.log.length - 200)
   game.updatedAt = Date.now()
 }
@@ -66,6 +67,7 @@ export function createGame(code: string, hostName: string, hostId: string, token
     pending: null,
     winnerId: null,
     log: [],
+    logSeq: 0,
     pileSeq: 0,
     updatedAt: Date.now(),
     turnStartedAt: 0,

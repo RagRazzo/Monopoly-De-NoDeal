@@ -63,6 +63,7 @@ export interface Game {
   pending: Pending | null
   winnerId: string | null
   log: string[]
+  logSeq: number // total lines ever logged (log itself is trimmed)
   pileSeq: number
   updatedAt: number
   turnStartedAt: number
@@ -113,6 +114,7 @@ export interface ClientGame {
   pending: ClientPending | null
   winnerId: string | null
   log: string[]
+  logSeq: number
   now: number // server clock at redaction time, for countdown skew correction
   turnDeadline: number | null
   responseDeadline: number | null

@@ -91,6 +91,7 @@ export function redactFor(game: Game, playerId: string): ClientGame {
     pending: describePending(game),
     winnerId: game.winnerId,
     log: game.log.slice(-60),
+    logSeq: game.logSeq,
     now: Date.now(),
     turnDeadline:
       current && !current.bot && game.turnStartedAt ? game.turnStartedAt + TURN_SECONDS * 1000 : null,

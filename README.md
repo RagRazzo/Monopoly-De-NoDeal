@@ -23,6 +23,11 @@ can cheat by editing the client.
   layering, ◀ ▶ reordering of your hand, a 🔍 full-size card zoom, and
   tappable nameplates that open any player's table (piles + bank) as zoomable
   card thumbnails.
+- **Sound**: fully synthesized with the Web Audio API (no audio files) — a
+  soft generative ambient loop during games, plus distinct procedural sound
+  effects for every action card (Deal Breaker, Just Say No, rent, Pass Go,
+  Birthday, buildings, payments…), your-turn and win/lose chimes. A speaker
+  button cycles music+SFX → SFX only → mute.
 - **Up to 6 players** with a *proportionally scaled deck*: the base 106-card
   deck grows to 144 cards for 5 players and 170 for 6, keeping every card
   type's draw probability faithful to the base game while adding enough

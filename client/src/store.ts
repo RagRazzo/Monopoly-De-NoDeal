@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Card } from '@shared/cards'
 import type { ClientGame } from '@shared/types'
+import { gameAudio } from './audio'
 
 // Client-side hand ordering: cards keep the player's chosen order; cards not
 // yet ordered (fresh draws) stay in their natural draw order at the end.
@@ -43,7 +44,7 @@ interface Store {
   setInspectPlayer: (id: string | null) => void
 }
 
-export const useStore = create<Store>((set) => ({
+export const useStore = create<Store>((set, get) => ({
   game: null,
   connected: false,
   error: null,
@@ -52,7 +53,8 @@ export const useStore = create<Store>((set) => ({
   handOrder: [],
   inspectCard: null,
   inspectPlayerId: null,
-  setGame: (game) =>
+  setGame: (game) => {
+    const prev = get().game
     set((s) => ({
       game,
       // Drop selection if the card left our hand.
@@ -60,7 +62,9 @@ export const useStore = create<Store>((set) => ({
         game && s.selectedCardId && game.yourHand.some((c) => c.id === s.selectedCardId)
           ? s.selectedCardId
           : null,
-    })),
+    }))
+    gameAudio(prev, game)
+  },
   setConnected: (connected) => set({ connected }),
   setError: (error) => set({ error }),
   select: (selectedCardId) => set({ selectedCardId, prompt: null }),
