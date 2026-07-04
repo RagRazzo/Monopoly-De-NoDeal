@@ -447,6 +447,56 @@ input {
   color: #f87171;
 }
 
+.pill.done {
+  background: #1e3a5f;
+  color: #7ec8e3;
+}
+
+/* Grouped rooms in the admin page */
+.code-group > summary,
+.room-item > summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+}
+
+.code-group > summary::before,
+.room-item > summary::before {
+  content: '▸';
+  color: #6b7280;
+  transition: transform 0.15s;
+}
+
+.code-group[open] > summary::before,
+.room-item[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.room-item {
+  background: #0b0f14;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.room-code-label {
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.room-detail {
+  margin-top: 8px;
+  padding: 8px 10px 2px 22px;
+  color: #9ca3af;
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .option-btn.danger {
   color: #f87171;
 }

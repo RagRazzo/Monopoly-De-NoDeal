@@ -68,6 +68,7 @@ export interface Game {
   pileSeq: number
   updatedAt: number
   turnStartedAt: number
+  turnsPlayed: number
   // Timeout bookkeeping maintained by the server sweeper.
   pendingKey?: string
   pendingSince?: number
@@ -128,12 +129,22 @@ export interface HostCodeStat {
   lastUsedAt: number | null
 }
 
-export interface HostCodeUsageEvent {
-  at: number
-  code: string
+// One record per room, updated through its lifecycle (created -> game
+// started -> ended). Persisted as append-only JSONL snapshots, last wins.
+export interface RoomUsage {
+  id: string
+  at: number // room created
+  code: string // host code used
   location: string // browser-reported timezone + language
   ip: string
-  room: string
+  room: string // room code
+  humans?: number // players when the game started
+  bots?: number
+  startedAt?: number
+  endedAt?: number
+  outcome?: 'finished' | 'abandoned'
+  winner?: string
+  turns?: number
 }
 
 export interface PlayActionOpts {

@@ -12,10 +12,11 @@
 //
 // Usage events are kept in memory (capped), appended to a JSONL file, and
 // echoed to stdout so Cloud Logging keeps a permanent trail either way.
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { HostCodeStat, HostCodeUsageEvent } from '../../shared/src/types.ts'
+import type { HostCodeStat, RoomUsage } from '../../shared/src/types.ts'
 
 interface HostCodeEntry {
   code: string
@@ -184,50 +185,114 @@ export function deleteCode(code: string): string | null {
   return null
 }
 
-// ---- Usage tracking ----
+// ---- Room usage tracking (lifecycle records) ----
+//
+// One record per room. Lifecycle updates (game started / ended) append a
+// full snapshot line to the JSONL file; on load, snapshots merge by id with
+// last-wins, so the log stays append-only while records stay updatable.
 
-let usage: HostCodeUsageEvent[] = []
-try {
-  if (fs.existsSync(USAGE_FILE)) {
-    usage = fs
-      .readFileSync(USAGE_FILE, 'utf8')
-      .split('\n')
-      .filter(Boolean)
-      .flatMap((line) => {
-        try {
-          return [JSON.parse(line) as HostCodeUsageEvent]
-        } catch {
-          return []
-        }
-      })
-  }
-} catch {
-  usage = []
-}
+const records = new Map<string, RoomUsage>()
+const activeByRoom = new Map<string, string>() // room code -> open record id
 
-export function recordUsage(event: HostCodeUsageEvent) {
-  usage.push(event)
-  if (usage.length > 2000) usage.splice(0, usage.length - 2000)
+function persistUsage(rec: RoomUsage) {
   try {
-    fs.appendFileSync(USAGE_FILE, JSON.stringify(event) + '\n')
+    fs.appendFileSync(USAGE_FILE, JSON.stringify(rec) + '\n')
   } catch {
     // Local log is best-effort; stdout below is the durable trail.
   }
-  console.log(`host-code-usage ${JSON.stringify(event)}`)
+  console.log(`host-code-usage ${JSON.stringify(rec)}`)
+}
+
+function trimRecords() {
+  const excess = records.size - 2000
+  if (excess > 0) for (const id of [...records.keys()].slice(0, excess)) records.delete(id)
+}
+
+try {
+  if (fs.existsSync(USAGE_FILE)) {
+    for (const line of fs.readFileSync(USAGE_FILE, 'utf8').split('\n')) {
+      if (!line.trim()) continue
+      try {
+        const raw = JSON.parse(line) as Partial<RoomUsage> & { at: number; code: string; room: string }
+        // Legacy creation-only events (pre-lifecycle) have no id.
+        const id = raw.id ?? `${raw.room}-${raw.at}`
+        records.set(id, { location: '', ip: '', ...records.get(id), ...raw, id })
+      } catch {
+        // skip corrupt lines
+      }
+    }
+  }
+} catch {
+  // start empty
+}
+// Boot reconciliation: records still open belonged to a previous instance
+// whose in-memory games are gone — close them as abandoned.
+for (const rec of records.values()) {
+  if (!rec.endedAt) {
+    rec.endedAt = Date.now()
+    rec.outcome = rec.outcome ?? 'abandoned'
+    persistUsage(rec)
+  }
+}
+trimRecords()
+
+export function recordRoomCreated(input: Omit<RoomUsage, 'id'>) {
+  // A rare room-code collision with a still-open record: close the old one.
+  const prevId = activeByRoom.get(input.room)
+  const prev = prevId ? records.get(prevId) : undefined
+  if (prev && !prev.endedAt) {
+    prev.endedAt = Date.now()
+    prev.outcome = 'abandoned'
+    persistUsage(prev)
+  }
+  const rec: RoomUsage = { ...input, id: crypto.randomUUID().slice(0, 10) }
+  records.set(rec.id, rec)
+  activeByRoom.set(rec.room, rec.id)
+  trimRecords()
+  persistUsage(rec)
+}
+
+function activeRecord(room: string): RoomUsage | undefined {
+  const id = activeByRoom.get(room)
+  return id ? records.get(id) : undefined
+}
+
+export function recordRoomStarted(room: string, info: { humans: number; bots: number }) {
+  const rec = activeRecord(room)
+  if (!rec || rec.startedAt) return
+  rec.startedAt = Date.now()
+  rec.humans = info.humans
+  rec.bots = info.bots
+  persistUsage(rec)
+}
+
+export function recordRoomEnded(
+  room: string,
+  info: { outcome: 'finished' | 'abandoned'; winner?: string; turns?: number },
+) {
+  const rec = activeRecord(room)
+  activeByRoom.delete(room)
+  if (!rec || rec.endedAt) return
+  rec.endedAt = Date.now()
+  rec.outcome = info.outcome
+  if (info.winner) rec.winner = info.winner
+  if (info.turns !== undefined) rec.turns = info.turns
+  persistUsage(rec)
+}
+
+export function recentRooms(limit = 200): RoomUsage[] {
+  return [...records.values()].slice(-limit).reverse()
 }
 
 export function listCodeStats(): HostCodeStat[] {
+  const all = [...records.values()]
   return file.codes.filter((e) => !e.deleted).map((e) => {
-    const events = usage.filter((u) => u.code === norm(e.code))
+    const mine = all.filter((r) => r.code === norm(e.code))
     return {
       code: e.code,
       enabled: e.enabled,
-      uses: events.length,
-      lastUsedAt: events.length ? events[events.length - 1].at : null,
+      uses: mine.length,
+      lastUsedAt: mine.length ? Math.max(...mine.map((r) => r.at)) : null,
     }
   })
-}
-
-export function recentUsage(limit = 100): HostCodeUsageEvent[] {
-  return usage.slice(-limit).reverse()
 }

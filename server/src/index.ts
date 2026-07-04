@@ -13,8 +13,10 @@ import {
   isMasterCode,
   isValidHostCode,
   listCodeStats,
-  recentUsage,
-  recordUsage,
+  recentRooms,
+  recordRoomCreated,
+  recordRoomEnded,
+  recordRoomStarted,
   setCodeEnabled,
 } from './hostCodes.ts'
 import { botAct, botToAct, sweepTimeouts } from './bot.ts'
@@ -49,7 +51,33 @@ interface SocketData {
 // playerId -> socket id, so reconnects displace stale sockets
 const socketsByPlayer = new Map<string, string>()
 
+// Phase transitions drive the usage lifecycle: lobby -> playing records the
+// game start (covers both startGame and startWithBot), -> finished records
+// the outcome. Abandoned rooms are recorded by the room sweeper instead.
+const lastPhase = new Map<string, string>()
+
+function trackPhase(game: Game) {
+  const prev = lastPhase.get(game.code)
+  if (prev === game.phase) return
+  lastPhase.set(game.code, game.phase)
+  if (lastPhase.size > 5000) lastPhase.clear()
+  if (game.phase === 'playing' && prev === 'lobby') {
+    recordRoomStarted(game.code, {
+      humans: game.players.filter((p) => !p.bot).length,
+      bots: game.players.filter((p) => p.bot).length,
+    })
+  }
+  if (game.phase === 'finished') {
+    recordRoomEnded(game.code, {
+      outcome: 'finished',
+      winner: game.players.find((p) => p.id === game.winnerId)?.name,
+      turns: game.turnsPlayed,
+    })
+  }
+}
+
 function broadcast(game: Game) {
+  trackPhase(game)
   for (const p of game.players) {
     const sid = socketsByPlayer.get(p.id)
     if (sid) io.to(sid).emit('state', redactFor(game, p.id))
@@ -118,7 +146,7 @@ io.on('connection', (socket) => {
     bind(socket, game, playerId)
     const fwd = socket.handshake.headers['x-forwarded-for']
     const ip = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(',')[0]?.trim() || socket.handshake.address
-    recordUsage({
+    recordRoomCreated({
       at: Date.now(),
       code: entered.trim().toLowerCase(),
       location: String(location ?? '').slice(0, 120),
@@ -130,8 +158,8 @@ io.on('connection', (socket) => {
   })
 
   // ---- Host-code admin (every call re-checks the master code) ----
-  type AdminAck = Ack<{ codes: ReturnType<typeof listCodeStats>; recent: ReturnType<typeof recentUsage>; durable: string }>
-  const adminPayload = (): AdminAck => ({ ok: true, codes: listCodeStats(), recent: recentUsage(100), durable: durableStatus })
+  type AdminAck = Ack<{ codes: ReturnType<typeof listCodeStats>; rooms: ReturnType<typeof recentRooms>; durable: string }>
+  const adminPayload = (): AdminAck => ({ ok: true, codes: listCodeStats(), rooms: recentRooms(200), durable: durableStatus })
 
   socket.on('adminCheck', ({ code }: { code?: string }, ack: (a: { isMaster: boolean }) => void) =>
     ack({ isMaster: isMasterCode(String(code ?? '')) }))

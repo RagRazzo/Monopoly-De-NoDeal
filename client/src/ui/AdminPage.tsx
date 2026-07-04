@@ -1,15 +1,84 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { HostCodeStat, HostCodeUsageEvent } from '@shared/types'
+import type { HostCodeStat, RoomUsage } from '@shared/types'
 import { socket } from '../net'
 import { toast, useStore } from '../store'
 
 interface AdminData {
   codes: HostCodeStat[]
-  recent: HostCodeUsageEvent[]
-  durable: string // 'off' | 'ok' | 'failed: <errno>'
+  rooms: RoomUsage[]
+  durable: string // 'off' | 'ok' | 'unmounted' | 'failed: <errno>'
 }
 
 type AdminAck = ({ ok: true } & AdminData) | { ok: false; error: string }
+
+const fmt = (t?: number | null) => (t ? new Date(t).toLocaleString() : '—')
+
+function roomStatus(r: RoomUsage): { label: string; cls: string } {
+  if (!r.endedAt) return { label: r.startedAt ? 'LIVE' : 'LOBBY', cls: 'on' }
+  return r.outcome === 'finished' ? { label: 'DONE', cls: 'done' } : { label: 'GONE', cls: 'off' }
+}
+
+function RoomRow({ r }: { r: RoomUsage }) {
+  const status = roomStatus(r)
+  const duration =
+    r.startedAt && r.endedAt ? Math.max(1, Math.round((r.endedAt - r.startedAt) / 60000)) : null
+  return (
+    <details className="room-item">
+      <summary>
+        <span className={`pill ${status.cls}`}>{status.label}</span>
+        <span className="room-code-label">{r.room}</span>
+        <span className="muted">
+          {fmt(r.at)}
+          {r.humans !== undefined && ` · ${r.humans}👤${r.bots ? ` + ${r.bots}🤖` : ''}`}
+        </span>
+      </summary>
+      <div className="room-detail">
+        <div>Room created: {fmt(r.at)}</div>
+        <div>
+          Game started: {fmt(r.startedAt)}
+          {r.humans !== undefined && ` — ${r.humans} player${r.humans === 1 ? '' : 's'}${r.bots ? ` + ${r.bots} CPU` : ''}`}
+        </div>
+        <div>
+          Ended: {fmt(r.endedAt)}
+          {r.outcome && ` (${r.outcome})`}
+          {r.winner && ` · 🏆 ${r.winner}`}
+          {r.turns ? ` · ${r.turns} turns` : ''}
+          {duration && ` · ~${duration} min`}
+        </div>
+        <div>
+          From: {r.location || 'unknown location'} · {r.ip}
+        </div>
+      </div>
+    </details>
+  )
+}
+
+function RoomsByCode({ rooms }: { rooms: RoomUsage[] }) {
+  const groups = new Map<string, RoomUsage[]>()
+  for (const r of rooms) {
+    const list = groups.get(r.code) ?? []
+    list.push(r)
+    groups.set(r.code, list)
+  }
+  if (rooms.length === 0) return <p className="muted">No rooms created yet.</p>
+  return (
+    <>
+      {[...groups.entries()].map(([code, list]) => (
+        <details key={code} className="pile-group code-group">
+          <summary>
+            <span className="code-name">{code}</span>
+            <span className="muted">
+              {list.length} room{list.length === 1 ? '' : 's'} · last {fmt(list[0].at)}
+            </span>
+          </summary>
+          {list.map((r) => (
+            <RoomRow key={r.id} r={r} />
+          ))}
+        </details>
+      ))}
+    </>
+  )
+}
 
 export function AdminPage({ master, onBack }: { master: string; onBack: () => void }) {
   const [data, setData] = useState<AdminData | null>(null)
@@ -18,7 +87,7 @@ export function AdminPage({ master, onBack }: { master: string; onBack: () => vo
 
   const handle = useCallback((ack: AdminAck) => {
     if (!ack.ok) return toast(ack.error)
-    setData({ codes: ack.codes, recent: ack.recent, durable: ack.durable })
+    setData({ codes: ack.codes, rooms: ack.rooms, durable: ack.durable })
   }, [])
 
   useEffect(() => {
@@ -107,22 +176,8 @@ export function AdminPage({ master, onBack }: { master: string; onBack: () => vo
                 Add
               </button>
             </div>
-            <h3>Recent room creations</h3>
-            {data.recent.length === 0 ? (
-              <p className="muted">No rooms created yet (history resets on redeploy).</p>
-            ) : (
-              <ul className="usage-list">
-                {data.recent.map((u, i) => (
-                  <li key={i} className="usage-row">
-                    <span className="code-name">{u.code}</span>
-                    <span>{new Date(u.at).toLocaleString()}</span>
-                    <span className="muted">
-                      {u.location || 'unknown location'} · {u.ip} · room {u.room}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <h3>Rooms by host code</h3>
+            <RoomsByCode rooms={data.rooms} />
           </>
         )}
         <button className="ghost-btn" onClick={onBack}>

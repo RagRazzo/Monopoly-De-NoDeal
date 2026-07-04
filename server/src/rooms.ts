@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import type { Game } from '../../shared/src/types.ts'
 import { createGame, removePlayer } from './engine.ts'
+import { recordRoomEnded } from './hostCodes.ts'
 
 const ROOMS = new Map<string, Game>()
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' // no 0/O/1/I/L
@@ -26,6 +27,8 @@ export function getRoom(code: string): Game | undefined {
 }
 
 export function deleteRoom(code: string) {
+  // No-op for rooms already recorded as finished.
+  if (ROOMS.has(code)) recordRoomEnded(code, { outcome: 'abandoned' })
   ROOMS.delete(code)
 }
 
@@ -52,6 +55,7 @@ export function sweepRooms(now = Date.now()) {
     }
     const age = now - game.updatedAt
     if (age > STALE_MS || (game.phase === 'finished' && age > FINISHED_MS) || game.players.length === 0) {
+      recordRoomEnded(code, { outcome: 'abandoned' }) // no-op if already finished
       ROOMS.delete(code)
     }
   }

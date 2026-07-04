@@ -6,7 +6,10 @@ import {
   isMasterCode,
   isValidHostCode,
   listCodeStats,
-  recordUsage,
+  recentRooms,
+  recordRoomCreated,
+  recordRoomEnded,
+  recordRoomStarted,
   setCodeEnabled,
 } from '../src/hostCodes.ts'
 
@@ -55,12 +58,46 @@ test('usage is tracked per code', () => {
     assert.equal(addCode(code), null)
     const before = listCodeStats().find((s) => s.code === code)?.uses ?? 0
     const at = Date.now()
-    recordUsage({ at, code, location: 'America/Toronto · en-US', ip: '1.2.3.4', room: 'ZZZZ1' })
-    recordUsage({ at: at + 1000, code, location: 'America/Toronto · en-US', ip: '1.2.3.4', room: 'ZZZZ2' })
+    recordRoomCreated({ at, code, location: 'America/Toronto · en-US', ip: '1.2.3.4', room: 'ZZZU1' })
+    recordRoomCreated({ at: at + 1000, code, location: 'America/Toronto · en-US', ip: '1.2.3.4', room: 'ZZZU2' })
     const stat = listCodeStats().find((s) => s.code === code)
     assert.ok(stat)
     assert.equal(stat.uses, before + 2)
     assert.equal(stat.lastUsedAt, at + 1000)
+  } finally {
+    recordRoomEnded('ZZZU1', { outcome: 'abandoned' })
+    recordRoomEnded('ZZZU2', { outcome: 'abandoned' })
+    deleteCode(code)
+  }
+})
+
+test('room lifecycle: created -> started -> ended updates one record', () => {
+  const code = 'zzz-lifecycle'
+  try {
+    assert.equal(addCode(code), null)
+    recordRoomCreated({ at: Date.now(), code, location: 'tz', ip: '1.1.1.1', room: 'ZZZL1' })
+
+    let rec = recentRooms(500).find((r) => r.room === 'ZZZL1' && r.code === code)
+    assert.ok(rec)
+    assert.equal(rec.startedAt, undefined)
+
+    recordRoomStarted('ZZZL1', { humans: 3, bots: 1 })
+    rec = recentRooms(500).find((r) => r.room === 'ZZZL1' && r.code === code)
+    assert.ok(rec?.startedAt, 'start recorded')
+    assert.equal(rec.humans, 3)
+    assert.equal(rec.bots, 1)
+
+    recordRoomEnded('ZZZL1', { outcome: 'finished', winner: 'Alice', turns: 24 })
+    rec = recentRooms(500).find((r) => r.room === 'ZZZL1' && r.code === code)
+    assert.ok(rec?.endedAt, 'end recorded')
+    assert.equal(rec.outcome, 'finished')
+    assert.equal(rec.winner, 'Alice')
+    assert.equal(rec.turns, 24)
+
+    // Ending again is a no-op (already closed).
+    recordRoomEnded('ZZZL1', { outcome: 'abandoned' })
+    rec = recentRooms(500).find((r) => r.room === 'ZZZL1' && r.code === code)
+    assert.equal(rec?.outcome, 'finished')
   } finally {
     deleteCode(code)
   }
