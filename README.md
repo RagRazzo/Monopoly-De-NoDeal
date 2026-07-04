@@ -153,3 +153,7 @@ works. Good candidates:
 - A player who leaves mid-game has their cards discarded and turns skipped;
   the host can resolve payments owed by disconnected players so the game
   never stalls.
+
+---
+
+_Persistence verified against a Cloud Storage `DATA_DIR` mount (write-probe: ok)._
