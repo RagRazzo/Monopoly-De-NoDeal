@@ -234,6 +234,9 @@ io.on('connection', (socket) => {
   socket.on('respondJsn', ({ useJsn }: { useJsn: boolean }, ack: (a: Ack) => void) =>
     ack(withGame(socket, (g, pid) => engine.respondJsn(g, pid, !!useJsn))))
 
+  socket.on('backToJsn', (_: unknown, ack: (a: Ack) => void) =>
+    ack(withGame(socket, (g, pid) => engine.backToJsn(g, pid))))
+
   socket.on('submitPayment', ({ cardIds }: { cardIds: string[] }, ack: (a: Ack) => void) =>
     ack(withGame(socket, (g, pid) => engine.submitPayment(g, pid, cardIds ?? []))))
 

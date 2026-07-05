@@ -67,6 +67,8 @@ export function PaymentModal({ game }: { game: ClientGame }) {
   const due = Math.min(pending.amount ?? 0, worth)
   const total = pool.filter((c) => picked.includes(c.id)).reduce((s, c) => s + c.value, 0)
   const attacker = game.players.find((p) => p.id === pending.attackerId)
+  // Offer a way back to the Just Say No decision if they still hold one.
+  const hasJsn = game.yourHand.some((c) => c.kind === 'action' && c.action === 'justsayno')
 
   const toggle = (id: string) =>
     setPicked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
@@ -87,6 +89,11 @@ export function PaymentModal({ game }: { game: ClientGame }) {
           ))}
         </div>
         <div className="modal-footer">
+          {hasJsn && (
+            <button className="option-btn" onClick={() => send('backToJsn')}>
+              ← Just Say No instead
+            </button>
+          )}
           <span className={total >= due ? 'ok' : 'bad'}>
             Selected {total}M / {due}M
           </span>

@@ -34,6 +34,7 @@ interface Store {
   handOrder: string[]
   inspectCard: Card | null
   inspectPlayerId: string | null
+  viewResetNonce: number
   setGame: (g: ClientGame | null) => void
   setConnected: (c: boolean) => void
   setError: (e: string | null) => void
@@ -42,6 +43,7 @@ interface Store {
   moveCard: (id: string, dir: -1 | 1) => void
   setInspectCard: (c: Card | null) => void
   setInspectPlayer: (id: string | null) => void
+  resetView: () => void
 }
 
 export const useStore = create<Store>((set, get) => ({
@@ -53,6 +55,7 @@ export const useStore = create<Store>((set, get) => ({
   handOrder: [],
   inspectCard: null,
   inspectPlayerId: null,
+  viewResetNonce: 0,
   setGame: (game) => {
     const prev = get().game
     set((s) => ({
@@ -81,6 +84,7 @@ export const useStore = create<Store>((set, get) => ({
     }),
   setInspectCard: (inspectCard) => set({ inspectCard }),
   setInspectPlayer: (inspectPlayerId) => set({ inspectPlayerId }),
+  resetView: () => set((s) => ({ viewResetNonce: s.viewResetNonce + 1 })),
 }))
 
 let errTimer: ReturnType<typeof setTimeout> | undefined

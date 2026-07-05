@@ -12,13 +12,23 @@ export interface Placement {
 }
 
 const SEAT_DIST = 4.4
+export const NAMEPLATE_RADIUS = 6.6
 const FLAT: [number, number, number] = [-Math.PI / 2, 0, 0]
 
 // Camera fitting shared with the Scene: portrait screens push the camera
-// back (fit > 1) and widen the field of view.
+// back (fit > 1) and widen the field of view so the whole table fits.
 export function viewFit(aspect: number): { fit: number; fov: number } {
-  const fit = aspect >= 1.35 ? 1 : Math.min(1.55, Math.pow(1.35 / aspect, 0.5))
-  return { fit, fov: aspect < 1 ? 60 : 46 }
+  const fit = aspect >= 1.35 ? 1 : Math.min(1.6, Math.pow(1.35 / aspect, 0.5))
+  const fov = aspect >= 1.35 ? 46 : aspect >= 1 ? 54 : 66
+  return { fit, fov }
+}
+
+// Portrait viewports are horizontally narrow, so the round seating layout's
+// left/right players (and their nameplates) fall outside the frame. Pull the
+// whole ring inward on narrow screens so every seat stays visible.
+export function ringScale(aspect: number): number {
+  if (aspect >= 1.35) return 1
+  return Math.max(0.62, 0.5 + aspect * 0.34)
 }
 
 interface Frame {
@@ -27,9 +37,9 @@ interface Frame {
   cz: number
 }
 
-function seatFrame(rel: number, total: number): Frame {
+function seatFrame(rel: number, total: number, ring = 1): Frame {
   const angle = Math.PI / 2 + (rel * 2 * Math.PI) / total
-  return { angle, cx: Math.cos(angle) * SEAT_DIST, cz: Math.sin(angle) * SEAT_DIST }
+  return { angle, cx: Math.cos(angle) * SEAT_DIST * ring, cz: Math.sin(angle) * SEAT_DIST * ring }
 }
 
 // Convert seat-local (lx = right, lz = toward player, ly = up) to world.
@@ -45,13 +55,14 @@ function flatRot(f: Frame, spin = 0): [number, number, number] {
   return [-Math.PI / 2, 0, Math.PI / 2 - f.angle + spin]
 }
 
-export function seatPositions(game: ClientGame): Map<string, Frame> {
+export function seatPositions(game: ClientGame, aspect = 1.78): Map<string, Frame> {
   const players = game.players
   const youIdx = Math.max(0, players.findIndex((p) => p.id === game.youId))
+  const ring = ringScale(aspect)
   const map = new Map<string, Frame>()
   players.forEach((p, i) => {
     const rel = (i - youIdx + players.length) % players.length
-    map.set(p.id, seatFrame(rel, players.length))
+    map.set(p.id, seatFrame(rel, players.length, ring))
   })
   return map
 }
@@ -105,7 +116,7 @@ export function computePlacements(
   orderedHand?: Card[],
 ): Placement[] {
   const out: Placement[] = []
-  const seats = seatPositions(game)
+  const seats = seatPositions(game, aspect)
 
   // Draw deck (center-left) and discard (center-right).
   const deckShown = Math.min(game.deckCount, 12)

@@ -101,29 +101,31 @@ function ActionBar({ game }: { game: ClientGame }) {
 
   return (
     <div className="action-bar">
-      {card && game.playsLeft > 0 ? (
-        <>
-          {actionsForCard(game, card).map((a, i) => (
-            <button key={i} className={a.primary ? 'primary-btn' : 'option-btn'} onClick={a.onClick}>
-              {a.label}
-            </button>
-          ))}
-          {(card.kind === 'property' || card.kind === 'wild') && (
-            <span className="muted bank-hint">
-              Properties can't be banked — their value counts when you pay opponents
-            </span>
-          )}
-        </>
-      ) : (
-        <span className="muted">
-          {game.playsLeft > 0 ? 'Pick a card from your hand, or end your turn' : 'No plays left — end your turn'}
-        </span>
-      )}
-      {hasTableWilds && game.playsLeft > 0 && (
-        <button className="option-btn" onClick={() => moveWildFlow(game)}>
-          Move a wildcard
-        </button>
-      )}
+      <div className="action-choices">
+        {card && game.playsLeft > 0 ? (
+          <>
+            {actionsForCard(game, card).map((a, i) => (
+              <button key={i} className={a.primary ? 'primary-btn' : 'option-btn'} onClick={a.onClick}>
+                {a.label}
+              </button>
+            ))}
+            {(card.kind === 'property' || card.kind === 'wild') && (
+              <span className="muted bank-hint">
+                Properties can't be banked — their value counts when you pay opponents
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="muted">
+            {game.playsLeft > 0 ? 'Pick a card from your hand, or end your turn' : 'No plays left — end your turn'}
+          </span>
+        )}
+        {hasTableWilds && game.playsLeft > 0 && (
+          <button className="option-btn" onClick={() => moveWildFlow(game)}>
+            Move a wildcard
+          </button>
+        )}
+      </div>
       <button className="end-turn-btn" onClick={() => send('endTurn')}>
         End turn
       </button>
@@ -185,6 +187,13 @@ export function Hud({ game }: { game: ClientGame }) {
         <span className="counts">
           Deck {game.deckCount} · Discard {game.discardCount}
         </span>
+        <button
+          className="ghost-btn small"
+          onClick={() => useStore.getState().resetView()}
+          title="Reset camera view"
+        >
+          🎥
+        </button>
         <button
           className="ghost-btn small"
           onClick={() => setSound(cycleSoundMode())}

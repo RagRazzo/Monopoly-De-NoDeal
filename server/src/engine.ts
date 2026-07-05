@@ -461,6 +461,24 @@ export function respondJsn(game: Game, pid: string, useJsn: boolean): string | n
   return null
 }
 
+// Revert from the payment prompt back to the Just Say No decision, so a
+// player who accepted can change their mind (only while they still hold a
+// Just Say No card and haven't paid yet).
+export function backToJsn(game: Game, pid: string): string | null {
+  const pending = game.pending
+  if (pending?.kind !== 'demand') return 'Nothing to revert'
+  const demand = pending.demand
+  const t = currentTarget(demand)
+  if (t.stage !== 'pay' || t.playerId !== pid) return 'Nothing to revert'
+  const player = findPlayer(game, pid)!
+  if (!player.hand.some((c) => c.kind === 'action' && c.action === 'justsayno')) {
+    return "You don't have a Just Say No card"
+  }
+  t.stage = 'jsn'
+  t.awaiting = pid
+  return null
+}
+
 export function submitPayment(game: Game, pid: string, cardIds: string[]): string | null {
   const pending = game.pending
   if (!pending || pending.kind !== 'demand') return 'No payment due'
