@@ -280,6 +280,44 @@ export function recordRoomEnded(
   persistUsage(rec)
 }
 
+// Hard delete: drop the record(s) from memory AND rewrite the JSONL file
+// so append-only history no longer resurrects them on the next reload.
+function rewriteUsageFile() {
+  try {
+    const body = [...records.values()].map((r) => JSON.stringify(r)).join('\n')
+    fs.writeFileSync(USAGE_FILE, body + (body ? '\n' : ''))
+  } catch (err) {
+    console.error('Could not rewrite usage log:', err)
+  }
+}
+
+export function deleteRoomUsage(id: string): string | null {
+  const rec = records.get(id)
+  if (!rec) return 'Entry not found'
+  records.delete(id)
+  if (activeByRoom.get(rec.room) === id) activeByRoom.delete(rec.room)
+  rewriteUsageFile()
+  console.log(`host-code-usage-deleted ${JSON.stringify({ id, code: rec.code, room: rec.room })}`)
+  return null
+}
+
+export function deleteUsageForCode(code: string): { removed: number } {
+  const needle = norm(code)
+  let removed = 0
+  for (const [id, rec] of records) {
+    if (rec.code === needle) {
+      records.delete(id)
+      if (activeByRoom.get(rec.room) === id) activeByRoom.delete(rec.room)
+      removed++
+    }
+  }
+  if (removed > 0) {
+    rewriteUsageFile()
+    console.log(`host-code-usage-deleted ${JSON.stringify({ code: needle, removed })}`)
+  }
+  return { removed }
+}
+
 export function recentRooms(limit = 200): RoomUsage[] {
   return [...records.values()].slice(-limit).reverse()
 }

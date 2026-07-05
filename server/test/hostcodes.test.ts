@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import {
   addCode,
   deleteCode,
+  deleteRoomUsage,
+  deleteUsageForCode,
   isMasterCode,
   isValidHostCode,
   listCodeStats,
@@ -68,6 +70,44 @@ test('usage is tracked per code', () => {
     recordRoomEnded('ZZZU1', { outcome: 'abandoned' })
     recordRoomEnded('ZZZU2', { outcome: 'abandoned' })
     deleteCode(code)
+  }
+})
+
+test('deleteRoomUsage: hard delete removes one record permanently', () => {
+  const code = 'zzz-delrow'
+  try {
+    assert.equal(addCode(code), null)
+    recordRoomCreated({ at: Date.now(), code, location: '', ip: '', room: 'DELR1' })
+    const rec = recentRooms(500).find((r) => r.room === 'DELR1' && r.code === code)
+    assert.ok(rec)
+    assert.equal(deleteRoomUsage(rec.id), null)
+    assert.ok(!recentRooms(500).some((r) => r.id === rec.id), 'record must be gone from memory')
+    // Missing entry is rejected.
+    assert.ok(deleteRoomUsage(rec.id))
+  } finally {
+    deleteCode(code)
+  }
+})
+
+test('deleteUsageForCode: hard delete removes every record for one code', () => {
+  const code = 'zzz-delcode'
+  const other = 'zzz-keepcode'
+  try {
+    assert.equal(addCode(code), null)
+    assert.equal(addCode(other), null)
+    recordRoomCreated({ at: Date.now(), code, location: '', ip: '', room: 'DELC1' })
+    recordRoomCreated({ at: Date.now() + 1, code, location: '', ip: '', room: 'DELC2' })
+    recordRoomCreated({ at: Date.now(), code: other, location: '', ip: '', room: 'KEEPC1' })
+    const { removed } = deleteUsageForCode(code)
+    assert.equal(removed, 2)
+    assert.ok(!recentRooms(500).some((r) => r.code === code))
+    assert.ok(recentRooms(500).some((r) => r.code === other), 'other codes are untouched')
+    // Idempotent: a second call with nothing left returns 0.
+    assert.equal(deleteUsageForCode(code).removed, 0)
+  } finally {
+    deleteUsageForCode(other)
+    deleteCode(code)
+    deleteCode(other)
   }
 })
 

@@ -9,6 +9,8 @@ import * as engine from './engine.ts'
 import {
   addCode,
   deleteCode,
+  deleteRoomUsage,
+  deleteUsageForCode,
   durableStatus,
   isMasterCode,
   isValidHostCode,
@@ -185,6 +187,21 @@ io.on('connection', (socket) => {
     if (!isMasterCode(String(master ?? ''))) return ack({ ok: false, error: 'Not authorized' })
     const err = deleteCode(String(code ?? ''))
     ack(err ? { ok: false, error: err } : adminPayload())
+  })
+
+  // Hard-delete usage records: one specific room log by id, or every log
+  // for a given host code in one shot. Both rewrite the JSONL file so the
+  // deletion is permanent.
+  socket.on('adminDeleteRoomUsage', ({ master, id }: { master?: string; id?: string }, ack: (a: AdminAck) => void) => {
+    if (!isMasterCode(String(master ?? ''))) return ack({ ok: false, error: 'Not authorized' })
+    const err = deleteRoomUsage(String(id ?? ''))
+    ack(err ? { ok: false, error: err } : adminPayload())
+  })
+
+  socket.on('adminDeleteUsageForCode', ({ master, code }: { master?: string; code?: string }, ack: (a: AdminAck) => void) => {
+    if (!isMasterCode(String(master ?? ''))) return ack({ ok: false, error: 'Not authorized' })
+    deleteUsageForCode(String(code ?? ''))
+    ack(adminPayload())
   })
 
   socket.on('joinRoom', ({ code, name }: { code: string; name: string }, ack: (a: Ack<{ code: string; playerId: string; token: string }>) => void) => {

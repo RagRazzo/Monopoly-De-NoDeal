@@ -18,7 +18,13 @@ function roomStatus(r: RoomUsage): { label: string; cls: string } {
   return r.outcome === 'finished' ? { label: 'DONE', cls: 'done' } : { label: 'GONE', cls: 'off' }
 }
 
-function RoomRow({ r }: { r: RoomUsage }) {
+function RoomRow({
+  r,
+  onDelete,
+}: {
+  r: RoomUsage
+  onDelete: (id: string) => void
+}) {
   const status = roomStatus(r)
   const duration =
     r.startedAt && r.endedAt ? Math.max(1, Math.round((r.endedAt - r.startedAt) / 60000)) : null
@@ -27,10 +33,21 @@ function RoomRow({ r }: { r: RoomUsage }) {
       <summary>
         <span className={`pill ${status.cls}`}>{status.label}</span>
         <span className="room-code-label">{r.room}</span>
-        <span className="muted">
+        <span className="muted room-summary-time">
           {fmt(r.at)}
           {r.humans !== undefined && ` · ${r.humans}👤${r.bots ? ` + ${r.bots}🤖` : ''}`}
         </span>
+        <button
+          className="option-btn small danger row-delete"
+          title="Delete this log entry (permanent)"
+          onClick={(e) => {
+            e.preventDefault() // stop <details> from toggling
+            e.stopPropagation()
+            if (window.confirm(`Permanently delete the log for room ${r.room}?`)) onDelete(r.id)
+          }}
+        >
+          ✕
+        </button>
       </summary>
       <div className="room-detail">
         <div>Room created: {fmt(r.at)}</div>
@@ -53,7 +70,15 @@ function RoomRow({ r }: { r: RoomUsage }) {
   )
 }
 
-function RoomsByCode({ rooms }: { rooms: RoomUsage[] }) {
+function RoomsByCode({
+  rooms,
+  onDeleteRoom,
+  onClearCode,
+}: {
+  rooms: RoomUsage[]
+  onDeleteRoom: (id: string) => void
+  onClearCode: (code: string) => void
+}) {
   const groups = new Map<string, RoomUsage[]>()
   for (const r of rooms) {
     const list = groups.get(r.code) ?? []
@@ -70,9 +95,21 @@ function RoomsByCode({ rooms }: { rooms: RoomUsage[] }) {
             <span className="muted">
               {list.length} room{list.length === 1 ? '' : 's'} · last {fmt(list[0].at)}
             </span>
+            <button
+              className="option-btn small danger row-delete"
+              title="Delete all log entries for this host code (permanent)"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (window.confirm(`Permanently delete ALL ${list.length} log entries for "${code}"?`))
+                  onClearCode(code)
+              }}
+            >
+              🗑 Clear all
+            </button>
           </summary>
           {list.map((r) => (
-            <RoomRow key={r.id} r={r} />
+            <RoomRow key={r.id} r={r} onDelete={onDeleteRoom} />
           ))}
         </details>
       ))}
@@ -177,7 +214,11 @@ export function AdminPage({ master, onBack }: { master: string; onBack: () => vo
               </button>
             </div>
             <h3>Rooms by host code</h3>
-            <RoomsByCode rooms={data.rooms} />
+            <RoomsByCode
+              rooms={data.rooms}
+              onDeleteRoom={(id) => socket.emit('adminDeleteRoomUsage', { master, id }, handle)}
+              onClearCode={(code) => socket.emit('adminDeleteUsageForCode', { master, code }, handle)}
+            />
           </>
         )}
         <button className="ghost-btn" onClick={onBack}>
