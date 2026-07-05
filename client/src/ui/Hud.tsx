@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { COLOR_INFO } from '@shared/cards'
+import { isPileComplete } from '@shared/logic'
 import { RESPONSE_SECONDS, TURN_SECONDS, type ClientGame } from '@shared/types'
 import { cycleSoundMode, getSoundMode } from '../audio'
 import { leaveRoom, send } from '../net'
@@ -176,6 +178,12 @@ export function Hud({ game }: { game: ClientGame }) {
   const turnPlayer = game.players.find((p) => p.id === game.turnPlayerId)
   const myTurn = game.turnPlayerId === game.youId
 
+  // My own stats — surfaced in the top bar since the 3D "you" nameplate
+  // was removed (it used to overlap the action bar).
+  const me = game.players.find((p) => p.id === game.youId)
+  const myBank = me ? me.bank.reduce((s, c) => s + c.value, 0) : 0
+  const mySets = me ? new Set(me.piles.filter(isPileComplete).map((pl) => pl.color)) : new Set<string>()
+
   return (
     <div className="hud">
       <div className="top-bar">
@@ -184,6 +192,23 @@ export function Hud({ game }: { game: ClientGame }) {
           {myTurn ? `Your turn — ${game.playsLeft} play${game.playsLeft === 1 ? '' : 's'} left` : `${turnPlayer?.name ?? '…'}'s turn`}
         </span>
         {!game.pending && <TimerPill deadline={game.turnDeadline} serverNow={game.now} total={TURN_SECONDS} />}
+        {me && (
+          <button
+            className="you-chip"
+            onClick={() => useStore.getState().setInspectPlayer(me.id)}
+            title="Tap to inspect your table"
+          >
+            <span className="you-label">You</span>
+            <span>🂠 {game.yourHand.length}</span>
+            <span>🏦 {myBank}M</span>
+            <span>{mySets.size}/3</span>
+            <span className="np-sets">
+              {[...mySets].map((c) => (
+                <span key={c} className="set-chip" style={{ background: COLOR_INFO[c as keyof typeof COLOR_INFO].hex }} />
+              ))}
+            </span>
+          </button>
+        )}
         <span className="counts">
           Deck {game.deckCount} · Discard {game.discardCount}
         </span>

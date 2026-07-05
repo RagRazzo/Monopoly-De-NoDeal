@@ -249,6 +249,30 @@ input {
   font-weight: 700;
 }
 
+.you-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(16, 21, 27, 0.85);
+  border: 1px solid #2a3441;
+  border-radius: 999px;
+  padding: 3px 12px;
+  color: #e5e7eb;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.you-chip:hover {
+  border-color: #f4c430;
+}
+
+.you-label {
+  color: #f4c430;
+  font-weight: 800;
+}
+
 .counts {
   color: #9ca3af;
   margin-left: auto;
@@ -797,6 +821,16 @@ input {
 
   .counts {
     display: none; /* deck/discard counts are visible on the 3D table itself */
+  }
+
+  .you-chip {
+    padding: 3px 10px;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .you-chip .np-sets {
+    display: none;
   }
 
   .log-toggle {

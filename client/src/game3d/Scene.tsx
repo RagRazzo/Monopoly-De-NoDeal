@@ -74,6 +74,10 @@ function Nameplates({ game, aspect }: { game: ClientGame; aspect: number }) {
   return (
     <>
       {game.players.map((p) => {
+        // Skip our own floating nameplate — it sits over the action bar
+        // and duplicates info we already know. A "You" chip in the top
+        // bar shows the same stats and opens our inspect modal.
+        if (p.id === game.youId) return null
         const f = seats.get(p.id)!
         const x = Math.cos(f.angle) * radius
         const z = Math.sin(f.angle) * radius
