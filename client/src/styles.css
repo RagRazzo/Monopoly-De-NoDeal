@@ -179,9 +179,14 @@ input {
   text-align: left;
 }
 
-.option-btn:hover {
+.option-btn:hover:not(:disabled) {
   background: #33415530;
   background-color: #334155;
+}
+
+.option-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .option-btn.small,

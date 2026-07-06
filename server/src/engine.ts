@@ -228,12 +228,26 @@ function removeFromPiles(player: Player, cardId: string): { card: Card; pile: Pi
   return null
 }
 
+// Merge any of the player's piles that share a color into a single pile, so
+// same-color properties never end up split across separate sets — e.g. after
+// a steal leaves an overflow card behind, or a Deal Breaker hands over a set
+// whose color the attacker was already collecting.
+function consolidateColor(player: Player, color: Color) {
+  const same = player.piles.filter((p) => p.color === color)
+  if (same.length <= 1) return
+  const keep = same[0]
+  for (let i = 1; i < same.length; i++) keep.cards.push(...same[i].cards)
+  player.piles = player.piles.filter((p) => p.color !== color || p === keep)
+}
+
 // Place a property/wild card into a player's pile of the given color,
-// reusing an incomplete pile when possible.
+// reusing an incomplete pile when possible, then merge any duplicate
+// same-color piles so the color always lives in one set.
 function placeProperty(game: Game, player: Player, card: Card, color: Color) {
   let pile = player.piles.find((p) => p.color === color && !isPileComplete(p))
   if (!pile) pile = newPile(game, player, color)
   pile.cards.push(card)
+  consolidateColor(player, color)
 }
 
 // ---- Basic plays ----
@@ -348,6 +362,7 @@ export function moveWild(
   } else {
     placeProperty(game, player, card, toColor)
   }
+  consolidateColor(player, toColor)
   game.playsLeft--
   log(game, `${player.name} moved a wildcard to ${COLOR_INFO[toColor].label}`)
   checkWin(game)
@@ -371,7 +386,10 @@ function initTarget(game: Game, demand: Demand): boolean {
     log(game, `${target.name} has nothing to pay`)
     return false
   }
-  t.stage = 'jsn'
+  // Payment demands (rent / birthday / debt) drop the target straight onto
+  // the payment screen; they can still fire Just Say No from there. Steals
+  // have no payment, so they keep the up-front Just Say No decision.
+  t.stage = demand.amount !== undefined ? 'pay' : 'jsn'
   t.awaiting = t.playerId
   t.jsnDepth = 0
   return true
@@ -408,6 +426,7 @@ function executeSteal(game: Game, demand: Demand) {
     if (i === -1) return
     const pile = target.piles.splice(i, 1)[0]
     attacker.piles.push(pile)
+    consolidateColor(attacker, pile.color)
     log(game, `${attacker.name} deal-broke ${target.name}'s ${COLOR_INFO[pile.color].label} set!`)
   } else if (demand.action === 'slydeal') {
     const found = removeFromPiles(target, demand.targetCardId!)
@@ -428,20 +447,26 @@ export function respondJsn(game: Game, pid: string, useJsn: boolean): string | n
   if (!pending || pending.kind !== 'demand') return 'Nothing to respond to'
   const demand = pending.demand
   const t = currentTarget(demand)
-  if (t.stage !== 'jsn') return 'Not awaiting a Just Say No decision'
   if (t.awaiting !== pid) return 'Not your decision'
   const responder = findPlayer(game, pid)!
 
   if (useJsn) {
+    // Playable at the Just Say No decision, or straight from the payment
+    // screen (payment demands skip the up-front prompt).
+    if (t.stage !== 'jsn' && t.stage !== 'pay') return 'Nothing to respond to'
     const jsn = responder.hand.find((c) => c.kind === 'action' && c.action === 'justsayno')
     if (!jsn) return "You don't have a Just Say No card"
     takeFromHand(responder, jsn.id)
     game.discard.push(jsn)
     t.jsnDepth++
-    t.awaiting = t.awaiting === t.playerId ? demand.attackerId : t.playerId
+    t.stage = 'jsn'
+    t.awaiting = pid === t.playerId ? demand.attackerId : t.playerId
     log(game, `${responder.name} played Just Say No!`)
     return null
   }
+
+  // Declining/accepting only makes sense at the Just Say No decision.
+  if (t.stage !== 'jsn') return 'Not awaiting a Just Say No decision'
 
   if (pid === demand.attackerId) {
     // Attacker declines to counter: this target is off the hook.

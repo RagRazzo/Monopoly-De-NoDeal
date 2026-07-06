@@ -113,7 +113,12 @@ export function respondPendingFor(game: Game, bot: Player) {
     return
   }
 
-  // Payment due from the bot.
+  // Payment due from the bot — but a costly demand is worth a Just Say No
+  // (payment demands now drop the target straight onto the pay stage, so the
+  // block decision happens here instead of at an up-front prompt).
+  if (hasJsn(bot) && threatScore(game, bot, false) >= 5) {
+    if (ok(engine.respondJsn(game, bot.id, true))) return
+  }
   const ids = pickPayment(game, bot, demand.amount ?? 0)
   if (!ok(engine.submitPayment(game, bot.id, ids))) {
     // Safety net: hand over everything (always satisfies "all you have").

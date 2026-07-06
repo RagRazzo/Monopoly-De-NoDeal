@@ -67,43 +67,51 @@ export function seatPositions(game: ClientGame, aspect = 1.78): Map<string, Fram
   return map
 }
 
+// Each seat gets a compact play area centred in front of it. The whole
+// footprint is kept narrow (tight pile spacing, the bank tucked close to the
+// piles rather than off to the side) so neighbouring seats never overlap,
+// even with 6 players around the ring. Tap a nameplate to inspect a table
+// in full detail.
 function playerCards(out: Placement[], p: ClientPlayer, f: Frame, mine: boolean) {
-  const scale = mine ? 0.92 : 0.78
-  // Bank: a tight stack on the player's right.
-  p.bank.forEach((card, i) => {
-    out.push({
-      key: card.id,
-      card,
-      pos: local(f, 2.35, 0.02 + i * 0.012, 0.25),
-      rot: flatRot(f, (i % 3 - 1) * 0.09),
-      scale,
-    })
-  })
-  // Property piles: a row, each pile fanned toward the table center.
+  const scale = mine ? 0.82 : 0.6
+  const step = mine ? 0.74 : 0.56 // horizontal spacing between piles
+  // Property piles: a centred row, each card fanned slightly toward center.
   const pileCount = p.piles.length
-  const startX = -((pileCount - 1) * 0.92) / 2 - 0.6
+  const spanX = (pileCount - 1) * step
+  const startX = -spanX / 2 - step * 0.45
   p.piles.forEach((pile, pi) => {
     pile.cards.forEach((card, ci) => {
       out.push({
         key: card.id,
         card,
-        pos: local(f, startX + pi * 0.92, 0.02 + ci * 0.012, -0.15 - ci * 0.38),
+        pos: local(f, startX + pi * step, 0.02 + ci * 0.012, -0.1 - ci * 0.3),
         rot: flatRot(f),
         scale,
         pileHint: pile.id,
       })
     })
   })
-  // Opponents' hands: fanned card backs beyond their play area.
+  // Bank: a tight stack tucked just to the right of the property row.
+  const bankX = spanX / 2 + step * 0.9
+  p.bank.forEach((card, i) => {
+    out.push({
+      key: card.id,
+      card,
+      pos: local(f, bankX, 0.02 + i * 0.012, 0.3),
+      rot: flatRot(f, (i % 3 - 1) * 0.08),
+      scale,
+    })
+  })
+  // Opponents' hands: fanned card backs behind their play area.
   if (!mine) {
     const n = Math.min(p.handCount, 8)
     for (let i = 0; i < n; i++) {
       out.push({
         key: `hand-${p.id}-${i}`,
         card: null,
-        pos: local(f, (i - (n - 1) / 2) * 0.32, 0.6 + i * 0.02, 1.35 + i * 0.015),
+        pos: local(f, (i - (n - 1) / 2) * 0.24, 0.6 + i * 0.02, 1.25 + i * 0.015),
         rot: [-0.9, 0, Math.PI / 2 - f.angle + (i - (n - 1) / 2) * 0.06],
-        scale: 0.62,
+        scale: 0.5,
       })
     }
   }

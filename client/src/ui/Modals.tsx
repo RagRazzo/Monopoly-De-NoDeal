@@ -67,7 +67,7 @@ export function PaymentModal({ game }: { game: ClientGame }) {
   const due = Math.min(pending.amount ?? 0, worth)
   const total = pool.filter((c) => picked.includes(c.id)).reduce((s, c) => s + c.value, 0)
   const attacker = game.players.find((p) => p.id === pending.attackerId)
-  // Offer a way back to the Just Say No decision if they still hold one.
+  // Just Say No is played straight from here (grayed out when none in hand).
   const hasJsn = game.yourHand.some((c) => c.kind === 'action' && c.action === 'justsayno')
 
   const toggle = (id: string) =>
@@ -89,11 +89,13 @@ export function PaymentModal({ game }: { game: ClientGame }) {
           ))}
         </div>
         <div className="modal-footer">
-          {hasJsn && (
-            <button className="option-btn" onClick={() => send('backToJsn')}>
-              ← Just Say No instead
-            </button>
-          )}
+          <button
+            className="option-btn"
+            disabled={!hasJsn}
+            onClick={() => send('respondJsn', { useJsn: true })}
+          >
+            🛑 Use Just Say No{!hasJsn && ' (none in hand)'}
+          </button>
           <span className={total >= due ? 'ok' : 'bad'}>
             Selected {total}M / {due}M
           </span>

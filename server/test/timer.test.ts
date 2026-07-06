@@ -97,7 +97,8 @@ test('turn clock is paused while a prompt is open', () => {
   let now = startedAt + 10_000
   sweepTimeouts(game, now) // arm the prompt clock
   now += 30_000 // 30s pass while the target thinks
-  assert.equal(engine.respondJsn(game, target.id, false), null)
+  // Payment demands drop the target straight onto the pay stage.
+  assert.equal((game.pending as any).demand.targets[0].stage, 'pay')
   assert.equal(engine.submitPayment(game, target.id, ['tm2']), null)
   assert.equal(game.pending, null)
   sweepTimeouts(game, now) // sweeper credits the wait back
