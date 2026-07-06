@@ -76,18 +76,26 @@ function CardTools({ game }: { game: ClientGame }) {
   )
 }
 
-function LogPanel({ game, open }: { game: ClientGame; open: boolean }) {
+function LogPanel({ game, open, onClose }: { game: ClientGame; open: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     ref.current?.scrollTo({ top: ref.current.scrollHeight })
-  }, [game.log.length])
+  }, [game.log.length, open])
   return (
-    <div className={`log-panel ${open ? 'open' : ''}`} ref={ref}>
-      {game.log.map((line, i) => (
-        <div key={i} className="log-line">
-          {line}
-        </div>
-      ))}
+    <div className={`log-panel ${open ? 'open' : ''}`}>
+      <div className="log-header">
+        <span>Game log</span>
+        <button className="ghost-btn small log-close" onClick={onClose}>
+          ✕ Close
+        </button>
+      </div>
+      <div className="log-body" ref={ref}>
+        {game.log.map((line, i) => (
+          <div key={i} className="log-line">
+            {line}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -235,7 +243,7 @@ export function Hud({ game }: { game: ClientGame }) {
       </div>
       {!connected && <div className="pending-banner offline">Reconnecting…</div>}
       <PendingBanner game={game} />
-      <LogPanel game={game} open={logOpen} />
+      <LogPanel game={game} open={logOpen} onClose={() => setLogOpen(false)} />
       <div className="bottom-stack">
         <CardTools game={game} />
         <ActionBar game={game} />

@@ -371,13 +371,34 @@ input {
   top: 64px;
   width: 250px;
   max-height: 40vh;
-  overflow-y: auto;
-  background: rgba(13, 17, 22, 0.82);
+  display: flex;
+  flex-direction: column;
+  background: rgba(13, 17, 22, 0.94);
   border: 1px solid #2a3441;
   border-radius: 12px;
-  padding: 10px;
   font-size: 12.5px;
   color: #cbd5e1;
+  z-index: 25;
+}
+
+.log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 6px 12px;
+  border-bottom: 1px solid #2a3441;
+  font-weight: 700;
+  color: #e5e7eb;
+}
+
+/* On desktop the log is permanent chrome (no toggle) — no close button. */
+.log-close {
+  display: none;
+}
+
+.log-body {
+  overflow-y: auto;
+  padding: 8px 12px;
 }
 
 .log-line {
@@ -838,18 +859,26 @@ input {
     margin-left: auto;
   }
 
-  /* Log becomes an on-demand overlay instead of permanent chrome. */
+  /* Log becomes an on-demand overlay instead of permanent chrome. It sits
+     below the (possibly two-row) top bar and above it in stacking order, and
+     carries its own ✕ Close so the top-bar toggle can never trap it open. */
   .log-panel {
     display: none;
-    top: 84px;
+    top: auto;
+    bottom: calc(150px + env(safe-area-inset-bottom));
     right: 8px;
-    width: min(260px, 74vw);
-    max-height: 46vh;
-    z-index: 20;
+    left: 8px;
+    width: auto;
+    max-height: 42vh;
+    z-index: 45;
   }
 
   .log-panel.open {
-    display: block;
+    display: flex;
+  }
+
+  .log-close {
+    display: inline-block;
   }
 
   .pending-banner {
