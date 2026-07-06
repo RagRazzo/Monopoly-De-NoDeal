@@ -859,17 +859,17 @@ input {
     margin-left: auto;
   }
 
-  /* Log becomes an on-demand overlay instead of permanent chrome. It sits
-     below the (possibly two-row) top bar and above it in stacking order, and
-     carries its own ✕ Close so the top-bar toggle can never trap it open. */
+  /* Log becomes an on-demand narrow panel on the right, below the (possibly
+     two-row) top bar, so it never covers the table. It carries its own
+     ✕ Close so the top-bar toggle can't trap it open. */
   .log-panel {
     display: none;
-    top: auto;
-    bottom: calc(150px + env(safe-area-inset-bottom));
-    right: 8px;
-    left: 8px;
-    width: auto;
-    max-height: 42vh;
+    top: calc(96px + env(safe-area-inset-top));
+    right: calc(8px + env(safe-area-inset-right));
+    left: auto;
+    bottom: auto;
+    width: min(280px, 72vw);
+    max-height: 38vh;
     z-index: 45;
   }
 
