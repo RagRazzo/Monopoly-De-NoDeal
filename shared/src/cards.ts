@@ -50,6 +50,9 @@ export type ActionName =
   | 'debtcollector'
   | 'birthday'
   | 'doublerent'
+  | 'quadruplerent'
+  | 'robbank'
+  | 'tax'
   | 'house'
   | 'hotel'
 
@@ -62,6 +65,9 @@ export const ACTION_INFO: Record<ActionName, { label: string; text: string }> = 
   debtcollector: { label: 'Debt Collector', text: 'Force one player to pay you 5M.' },
   birthday: { label: "It's My Birthday!", text: 'All players give you 2M as a gift.' },
   doublerent: { label: 'Double The Rent', text: 'Play with a rent card to double the amount charged.' },
+  quadruplerent: { label: 'Quadruple Rent', text: 'Play with a rent card to charge 4x the rent (uses 2 plays).' },
+  robbank: { label: 'Rob Bank', text: 'Force one player to hand over their entire bank.' },
+  tax: { label: 'Tax Day', text: 'Every opponent pays 1M for each complete set they own.' },
   house: { label: 'House', text: 'Add 3M to the rent of a complete set (not rail/utility).' },
   hotel: { label: 'Hotel', text: 'Add 4M to the rent of a complete set that has a house.' },
 }
@@ -76,6 +82,7 @@ export type Card =
 interface Spec {
   baseCount: number
   make: () => Omit<Card, 'id'>
+  perPlayer?: boolean // count equals the player count (not scaled by deck size)
 }
 
 const SPECS: Spec[] = []
@@ -137,8 +144,13 @@ action('slydeal', 3, 3)
 action('debtcollector', 3, 3)
 action('birthday', 2, 3)
 action('doublerent', 1, 2)
+action('quadruplerent', 1, 1)
+action('tax', 2, 2)
 action('house', 3, 3)
 action('hotel', 4, 2)
+
+// Rob Bank: one card per player at the table (not scaled by deck size).
+SPECS.push({ baseCount: 1, perPlayer: true, make: () => ({ kind: 'action', action: 'robbank', value: 3 }) })
 
 export function deckScale(playerCount: number): number {
   if (playerCount <= 4) return 1
@@ -153,7 +165,7 @@ export function buildDeck(playerCount: number, rng: Rng): Card[] {
   const deck: Card[] = []
   let n = 0
   for (const spec of SPECS) {
-    const count = Math.max(1, Math.round(spec.baseCount * scale))
+    const count = spec.perPlayer ? playerCount : Math.max(1, Math.round(spec.baseCount * scale))
     for (let i = 0; i < count; i++) {
       deck.push({ ...spec.make(), id: `c${n++}` } as Card)
     }

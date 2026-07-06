@@ -4,17 +4,21 @@ import { buildDeck, deckScale } from '../../shared/src/cards.ts'
 
 const rng = () => Math.random()
 
-test('base deck has 106 cards for 2-4 players', () => {
+test('base deck for 2-4 players is 106 base cards + Tax/Quad + one Rob Bank per player', () => {
+  // 106 classic cards + Quadruple Rent (1) + Tax Day (2) + one Rob Bank each.
   for (const n of [2, 3, 4]) {
-    assert.equal(buildDeck(n, rng).length, 106)
+    assert.equal(buildDeck(n, rng).length, 109 + n)
   }
 })
 
-test('deck scales proportionally for 5 and 6 players', () => {
-  const five = buildDeck(5, rng).length
-  const six = buildDeck(6, rng).length
-  assert.ok(five > 106 && five < 106 * 1.45, `5p deck ${five}`)
-  assert.ok(six > five && six <= Math.ceil(106 * 1.6), `6p deck ${six}`)
+test('deck scales up for 5 and 6 players with one Rob Bank per player', () => {
+  const five = buildDeck(5, rng)
+  const six = buildDeck(6, rng)
+  assert.ok(five.length > 113, `5p deck ${five.length}`)
+  assert.ok(six.length > five.length, `6p deck ${six.length}`)
+  const robbanks = (d: typeof five) => d.filter((c) => c.kind === 'action' && c.action === 'robbank').length
+  assert.equal(robbanks(five), 5)
+  assert.equal(robbanks(six), 6)
 })
 
 test('card type ratios stay faithful under scaling', () => {

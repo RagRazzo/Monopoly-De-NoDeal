@@ -119,7 +119,7 @@ export function respondPendingFor(game: Game, bot: Player) {
   if (hasJsn(bot) && threatScore(game, bot, false) >= 5) {
     if (ok(engine.respondJsn(game, bot.id, true))) return
   }
-  const ids = pickPayment(game, bot, demand.amount ?? 0)
+  const ids = pickPayment(game, bot, target.amount ?? demand.amount ?? 0)
   if (!ok(engine.submitPayment(game, bot.id, ids))) {
     // Safety net: hand over everything (always satisfies "all you have").
     engine.submitPayment(game, bot.id, payableCards(bot).map((c) => c.id))
@@ -131,11 +131,16 @@ export function respondPendingFor(game: Game, bot: Player) {
 function threatScore(game: Game, bot: Player, iAmAttacker: boolean): number {
   const demand = (game.pending as Extract<NonNullable<Game['pending']>, { kind: 'demand' }>).demand
   if (demand.action === 'dealbreaker') return 10
-  if (demand.amount !== undefined) {
-    const victim = iAmAttacker
-      ? game.players.find((p) => p.id === demand.targets[demand.index].playerId)
-      : bot
-    return Math.min(demand.amount, victim ? playerWorth(victim) : demand.amount)
+  const t = demand.targets[demand.index]
+  const victimOf = () => (iAmAttacker ? game.players.find((p) => p.id === t.playerId) : bot)
+  if (demand.action === 'robbank') {
+    const victim = victimOf()
+    return victim ? victim.bank.reduce((s, c) => s + c.value, 0) : 0
+  }
+  const amount = t.amount ?? demand.amount
+  if (amount !== undefined) {
+    const victim = victimOf()
+    return Math.min(amount, victim ? playerWorth(victim) : amount)
   }
   // Sly/forced deal: value of the contested card, boosted when it sits in a
   // pile that is one card away from completion.
@@ -157,11 +162,15 @@ function keepScore(card: Card): number {
       return 100
     case 'dealbreaker':
       return 55
+    case 'robbank':
+      return 45
     case 'passgo':
       return 38
     case 'slydeal':
     case 'forceddeal':
       return 35
+    case 'tax':
+      return 32
     case 'debtcollector':
       return 30
     case 'birthday':
@@ -170,6 +179,7 @@ function keepScore(card: Card): number {
     case 'hotel':
       return 26
     case 'doublerent':
+    case 'quadruplerent':
       return 24
   }
 }
@@ -231,11 +241,37 @@ function tryBestPlay(game: Game, bot: Player): boolean {
     tryDealBreaker(game, bot) ||
     trySteal(game, bot) ||
     tryRent(game, bot) ||
+    tryRobBank(game, bot) ||
+    tryTax(game, bot) ||
     tryDebtCollector(game, bot) ||
     tryBirthday(game, bot) ||
     tryBankMoney(game, bot) ||
     tryBankSurplus(game, bot)
   )
+}
+
+// Rob the richest bank worth taking.
+function tryRobBank(game: Game, bot: Player): boolean {
+  const card = bot.hand.find((c) => c.kind === 'action' && c.action === 'robbank')
+  if (!card) return false
+  const bankOf = (p: Player) => p.bank.reduce((s, c) => s + c.value, 0)
+  const target = opponents(game, bot)
+    .filter((p) => bankOf(p) > 0)
+    .sort((a, b) => bankOf(b) - bankOf(a))[0]
+  if (!target || bankOf(target) < 3) return false
+  return ok(engine.playAction(game, bot.id, card.id, { targetPlayerId: target.id }))
+}
+
+// Tax Day when opponents' complete sets make it worth a play.
+function tryTax(game: Game, bot: Player): boolean {
+  const card = bot.hand.find((c) => c.kind === 'action' && c.action === 'tax')
+  if (!card) return false
+  const take = opponents(game, bot).reduce(
+    (s, o) => s + Math.min(o.piles.filter(isPileComplete).length, playerWorth(o)),
+    0,
+  )
+  if (take < 2) return false
+  return ok(engine.playAction(game, bot.id, card.id, {}))
 }
 
 function tryPassGo(game: Game, bot: Player): boolean {

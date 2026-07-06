@@ -28,13 +28,22 @@ export interface Player {
   piles: Pile[]
 }
 
-export type DemandAction = 'rent' | 'birthday' | 'debtcollector' | 'slydeal' | 'forceddeal' | 'dealbreaker'
+export type DemandAction =
+  | 'rent'
+  | 'birthday'
+  | 'debtcollector'
+  | 'slydeal'
+  | 'forceddeal'
+  | 'dealbreaker'
+  | 'robbank'
+  | 'tax'
 
 export interface TargetState {
   playerId: string
   stage: 'jsn' | 'pay'
   awaiting: string // player whose response is required next
   jsnDepth: number
+  amount?: number // per-target amount owed (e.g. Tax Day scales with sets)
 }
 
 export interface Demand {
@@ -155,6 +164,7 @@ export interface PlayActionOpts {
   pileId?: string // for house/hotel
   color?: Color // for rent
   doubleRentCardIds?: string[]
+  quadRentCardIds?: string[] // Quadruple Rent boosters played with a rent card
 }
 
 export type Ack<T = {}> = { ok: true } & T | { ok: false; error: string }

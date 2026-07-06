@@ -43,23 +43,36 @@ function pickPlayer(title: string, candidates: ClientPlayer[], then: (p: ClientP
 
 function doubleRentStep(game: ClientGame, card: Card, opts: PlayActionOpts) {
   const my = me(game)
+  // Rent boosters: Quadruple Rent (x4) is stronger, so offer it first.
+  const quads = game.yourHand.filter((c) => c.kind === 'action' && c.action === 'quadruplerent')
   const doublers = game.yourHand.filter((c) => c.kind === 'action' && c.action === 'doublerent')
-  const maxDoublers = Math.min(doublers.length, game.playsLeft - 1)
-  if (maxDoublers < 1) return playAction(card.id, opts)
+  const boosters = [
+    ...quads.map((c) => ({ id: c.id, factor: 4, kind: 'quad' as const })),
+    ...doublers.map((c) => ({ id: c.id, factor: 2, kind: 'double' as const })),
+  ]
+  const maxBoost = Math.min(boosters.length, game.playsLeft - 1)
+  if (maxBoost < 1) return playAction(card.id, opts)
   const baseRent = Math.max(
     ...my.piles.filter((p) => p.color === opts.color).map(pileRent),
   )
   const options: PromptOption[] = [
     { label: `No — charge ${baseRent}M`, onPick: () => playAction(card.id, opts) },
   ]
-  for (let n = 1; n <= maxDoublers; n++) {
-    const ids = doublers.slice(0, n).map((c) => c.id)
+  let mult = 1
+  for (let n = 1; n <= maxBoost; n++) {
+    mult *= boosters[n - 1].factor
+    const chosen = boosters.slice(0, n)
+    const boostOpts: PlayActionOpts = {
+      ...opts,
+      doubleRentCardIds: chosen.filter((b) => b.kind === 'double').map((b) => b.id),
+      quadRentCardIds: chosen.filter((b) => b.kind === 'quad').map((b) => b.id),
+    }
     options.push({
-      label: `Double x${n} — charge ${baseRent * 2 ** n}M (uses ${n + 1} plays)`,
-      onPick: () => playAction(card.id, { ...opts, doubleRentCardIds: ids }),
+      label: `Boost x${mult} — charge ${baseRent * mult}M (uses ${n + 1} plays)`,
+      onPick: () => playAction(card.id, boostOpts),
     })
   }
-  setPrompt({ title: 'Double the rent?', options })
+  setPrompt({ title: 'Boost the rent?', options })
 }
 
 function rentFlow(game: ClientGame, card: Card & { kind: 'rent' }) {
@@ -187,6 +200,28 @@ export function actionsForCard(game: ClientGame, card: Card): CardAction[] {
             onClick: () => pickPlayer('Who owes you 5M?', others(game), (p) => playAction(card.id, { targetPlayerId: p.id })),
           })
           break
+        case 'robbank':
+          actions.push({
+            label: 'Rob a bank…',
+            primary: true,
+            onClick: () => {
+              const candidates = others(game).filter((p) => p.bank.length > 0)
+              if (candidates.length === 0) return toast('No one has a bank to rob')
+              pickPlayer('Rob whose bank?', candidates, (p) => playAction(card.id, { targetPlayerId: p.id }))
+            },
+          })
+          break
+        case 'tax':
+          actions.push({
+            label: 'Play — tax complete sets',
+            primary: true,
+            onClick: () => {
+              if (!others(game).some((p) => p.piles.some(isPileComplete)))
+                return toast('No one has a complete set to tax')
+              playAction(card.id)
+            },
+          })
+          break
         case 'slydeal': {
           actions.push({
             label: 'Steal a property…',
@@ -279,6 +314,7 @@ export function actionsForCard(game: ClientGame, card: Card): CardAction[] {
         }
         case 'justsayno':
         case 'doublerent':
+        case 'quadruplerent':
           // Only playable in response / alongside rent; can still be banked.
           break
       }

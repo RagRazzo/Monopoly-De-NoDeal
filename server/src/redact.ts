@@ -24,12 +24,15 @@ function describePending(game: Game): ClientPending | null {
 
   const d = pending.demand
   const t = d.targets[d.index]
+  const amount = t.amount ?? d.amount
   const actionLabel = d.action === 'rent' ? 'Rent' : ACTION_INFO[d.action].label
   let description: string
   if (t.stage === 'pay') {
-    description = `${name(t.playerId)} must pay ${name(d.attackerId)} ${d.amount}M (${actionLabel})`
+    description = `${name(t.playerId)} must pay ${name(d.attackerId)} ${amount}M (${actionLabel})`
   } else if (t.awaiting === d.attackerId) {
     description = `${name(t.playerId)} said No! ${name(d.attackerId)} may counter with Just Say No`
+  } else if (d.action === 'robbank') {
+    description = `Rob Bank hits ${name(t.playerId)} — hand over your bank or Just Say No`
   } else {
     description = `${actionLabel} targets ${name(t.playerId)} — they may pay/accept or Just Say No`
   }
@@ -47,7 +50,7 @@ function describePending(game: Game): ClientPending | null {
     awaitingId: t.awaiting,
     stage: t.stage,
     jsnDepth: t.jsnDepth,
-    amount: d.amount,
+    amount,
     description: description + detail,
   }
 }

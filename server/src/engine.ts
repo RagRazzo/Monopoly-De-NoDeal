@@ -9,6 +9,7 @@ import {
   type Color,
 } from '../../shared/src/cards.ts'
 import {
+  completeSetColors,
   hasWon,
   isBuilding,
   isPileComplete,
@@ -377,19 +378,30 @@ function startDemand(game: Game, demand: Demand) {
   advanceDemand(game)
 }
 
+// The amount a specific target owes for a payment demand. Tax Day scales with
+// how many complete sets that target owns (1M each); everything else uses the
+// demand's flat amount. Returns undefined for demands with no payment (steals,
+// Rob Bank).
+function targetAmount(demand: Demand, target: Player): number | undefined {
+  if (demand.action === 'tax') return completeSetColors(target).length
+  return demand.amount
+}
+
 function initTarget(game: Game, demand: Demand): boolean {
   // Returns false if the target auto-resolves (nothing to take).
   const t = demand.targets[demand.index]
   const target = findPlayer(game, t.playerId)!
   if (target.left) return false
-  if (demand.amount !== undefined && playerWorth(target) === 0) {
+  const amount = targetAmount(demand, target)
+  if (amount !== undefined && (amount <= 0 || playerWorth(target) === 0)) {
     log(game, `${target.name} has nothing to pay`)
     return false
   }
-  // Payment demands (rent / birthday / debt) drop the target straight onto
-  // the payment screen; they can still fire Just Say No from there. Steals
-  // have no payment, so they keep the up-front Just Say No decision.
-  t.stage = demand.amount !== undefined ? 'pay' : 'jsn'
+  t.amount = amount
+  // Payment demands (rent / birthday / debt / tax) drop the target straight
+  // onto the payment screen; they can still fire Just Say No from there.
+  // Steals and Rob Bank keep the up-front Just Say No decision.
+  t.stage = amount !== undefined ? 'pay' : 'jsn'
   t.awaiting = t.playerId
   t.jsnDepth = 0
   return true
@@ -439,6 +451,11 @@ function executeSteal(game: Game, demand: Demand) {
     if (theirs) placeProperty(game, attacker, theirs.card, theirs.pile.color)
     if (mine) placeProperty(game, target, mine.card, mine.pile.color)
     log(game, `${attacker.name} forced a deal with ${target.name}`)
+  } else if (demand.action === 'robbank') {
+    const loot = target.bank.splice(0)
+    const stolen = loot.reduce((s, c) => s + c.value, 0)
+    attacker.bank.push(...loot)
+    log(game, `${attacker.name} robbed ${target.name}'s bank of ${stolen}M!`)
   }
 }
 
@@ -462,6 +479,7 @@ export function respondJsn(game: Game, pid: string, useJsn: boolean): string | n
     t.stage = 'jsn'
     t.awaiting = pid === t.playerId ? demand.attackerId : t.playerId
     log(game, `${responder.name} played Just Say No!`)
+    if (demand.action === 'robbank') log(game, '🚨 Police sirens — the bank robbery was foiled!')
     return null
   }
 
@@ -512,7 +530,7 @@ export function submitPayment(game: Game, pid: string, cardIds: string[]): strin
   if (t.stage !== 'pay' || t.playerId !== pid) return 'No payment due from you'
   const payer = findPlayer(game, pid)!
   const attacker = findPlayer(game, demand.attackerId)!
-  const amount = demand.amount!
+  const amount = t.amount ?? demand.amount!
 
   const pool = payableCards(payer)
   const chosen: Card[] = []
@@ -579,7 +597,7 @@ export function forceResolve(game: Game, byId: string): string | null {
   const awaiting = findPlayer(game, t.awaiting)!
   if (awaiting.connected) return `${awaiting.name} is still connected`
   if (t.stage === 'jsn') return respondJsn(game, awaiting.id, false)
-  return submitPayment(game, awaiting.id, autoPickPayment(awaiting, demand.amount!))
+  return submitPayment(game, awaiting.id, autoPickPayment(awaiting, t.amount ?? demand.amount!))
 }
 
 // ---- Action cards ----
@@ -688,10 +706,32 @@ export function playAction(game: Game, pid: string, cardId: string, opts: PlayAc
       })
       return null
     }
+    case 'robbank': {
+      const target = findPlayer(game, opts.targetPlayerId ?? '')
+      if (!target || target.id === pid || target.left) return 'Pick a player to rob'
+      if (target.bank.length === 0) return 'That player has no bank to rob'
+      takeFromHand(player, cardId)
+      game.discard.push(card)
+      game.playsLeft--
+      log(game, `${player.name} played Rob Bank on ${target.name}`)
+      startDemand(game, { action: 'robbank', attackerId: pid, targets: makeTargets([target.id]), index: 0 })
+      return null
+    }
+    case 'tax': {
+      const targets = activePlayers(game).filter((p) => p.id !== pid && completeSetColors(p).length > 0)
+      if (targets.length === 0) return 'No one has a complete set to tax'
+      takeFromHand(player, cardId)
+      game.discard.push(card)
+      game.playsLeft--
+      log(game, `${player.name} played Tax Day — 1M per complete set`)
+      startDemand(game, { action: 'tax', attackerId: pid, targets: makeTargets(targets.map((p) => p.id)), index: 0 })
+      return null
+    }
     case 'justsayno':
       return 'Just Say No is played in response to an action'
     case 'doublerent':
-      return 'Double The Rent is played together with a rent card'
+    case 'quadruplerent':
+      return 'Rent boosters are played together with a rent card'
   }
 }
 
@@ -704,14 +744,20 @@ function playRent(game: Game, player: Player, card: Card & { kind: 'rent' }, opt
   let amount = Math.max(...piles.map(pileRent))
   if (amount <= 0) return 'That set charges no rent'
 
-  // Double The Rent: each copy doubles the amount and costs an extra play.
-  const doublers: Card[] = []
+  // Rent boosters: Double The Rent (x2) and Quadruple Rent (x4). Each copy
+  // multiplies the amount and costs an extra play.
+  const boosters: { card: Card; factor: number }[] = []
   for (const id of new Set(opts.doubleRentCardIds ?? [])) {
     const d = player.hand.find((c) => c.id === id)
     if (!d || d.kind !== 'action' || d.action !== 'doublerent') return 'Invalid Double The Rent card'
-    doublers.push(d)
+    boosters.push({ card: d, factor: 2 })
   }
-  const playsNeeded = 1 + doublers.length
+  for (const id of new Set(opts.quadRentCardIds ?? [])) {
+    const q = player.hand.find((c) => c.id === id)
+    if (!q || q.kind !== 'action' || q.action !== 'quadruplerent') return 'Invalid Quadruple Rent card'
+    boosters.push({ card: q, factor: 4 })
+  }
+  const playsNeeded = 1 + boosters.length
   if (game.playsLeft < playsNeeded) return `Not enough plays left (needs ${playsNeeded})`
 
   let targetIds: string[]
@@ -726,15 +772,17 @@ function playRent(game: Game, player: Player, card: Card & { kind: 'rent' }, opt
 
   takeFromHand(player, card.id)
   game.discard.push(card)
-  for (const d of doublers) {
-    takeFromHand(player, d.id)
-    game.discard.push(d)
-    amount *= 2
+  let multiplier = 1
+  for (const { card: b, factor } of boosters) {
+    takeFromHand(player, b.id)
+    game.discard.push(b)
+    amount *= factor
+    multiplier *= factor
   }
   game.playsLeft -= playsNeeded
   log(
     game,
-    `${player.name} charges ${amount}M rent on ${COLOR_INFO[color].label}${doublers.length ? ` (doubled x${doublers.length})` : ''}`,
+    `${player.name} charges ${amount}M rent on ${COLOR_INFO[color].label}${multiplier > 1 ? ` (x${multiplier})` : ''}`,
   )
   startDemand(game, { action: 'rent', attackerId: player.id, targets: makeTargets(targetIds), index: 0, amount })
   return null

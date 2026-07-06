@@ -25,6 +25,42 @@ export interface Prompt {
   options: PromptOption[]
 }
 
+// Short, splashy overlay animations triggered by fresh log lines.
+export type EffectKind =
+  | 'dealbreaker'
+  | 'slydeal'
+  | 'forceddeal'
+  | 'robbank'
+  | 'robcaught'
+  | 'justsayno'
+  | 'payment'
+
+export interface TableEffect {
+  id: number
+  kind: EffectKind
+}
+
+function effectKindForLine(line: string): EffectKind | null {
+  if (line.includes('🚨')) return 'robcaught'
+  if (line.includes('deal-broke')) return 'dealbreaker'
+  if (line.includes('sly-dealt')) return 'slydeal'
+  if (line.includes('forced a deal')) return 'forceddeal'
+  if (line.includes('robbed')) return 'robbank'
+  if (line.includes('Just Say No')) return 'justsayno'
+  if (line.includes('paid')) return 'payment'
+  return null
+}
+
+const EFFECT_MS: Record<EffectKind, number> = {
+  dealbreaker: 1500,
+  slydeal: 1400,
+  forceddeal: 1400,
+  robbank: 1500,
+  robcaught: 1900,
+  justsayno: 1300,
+  payment: 1200,
+}
+
 interface Store {
   game: ClientGame | null
   connected: boolean
@@ -35,6 +71,7 @@ interface Store {
   inspectCard: Card | null
   inspectPlayerId: string | null
   viewResetNonce: number
+  effects: TableEffect[]
   setGame: (g: ClientGame | null) => void
   setConnected: (c: boolean) => void
   setError: (e: string | null) => void
@@ -44,7 +81,10 @@ interface Store {
   setInspectCard: (c: Card | null) => void
   setInspectPlayer: (id: string | null) => void
   resetView: () => void
+  pushEffect: (kind: EffectKind) => void
 }
+
+let effectSeq = 0
 
 export const useStore = create<Store>((set, get) => ({
   game: null,
@@ -56,6 +96,7 @@ export const useStore = create<Store>((set, get) => ({
   inspectCard: null,
   inspectPlayerId: null,
   viewResetNonce: 0,
+  effects: [],
   setGame: (game) => {
     const prev = get().game
     set((s) => ({
@@ -67,6 +108,14 @@ export const useStore = create<Store>((set, get) => ({
           : null,
     }))
     gameAudio(prev, game)
+    // Splash effects from fresh log lines (skip on join/refresh to avoid replay).
+    if (prev && game && prev.code === game.code) {
+      const fresh = Math.min(Math.max(0, game.logSeq - prev.logSeq), 6, game.log.length)
+      for (const line of game.log.slice(game.log.length - fresh)) {
+        const kind = effectKindForLine(line)
+        if (kind) get().pushEffect(kind)
+      }
+    }
   },
   setConnected: (connected) => set({ connected }),
   setError: (error) => set({ error }),
@@ -85,6 +134,11 @@ export const useStore = create<Store>((set, get) => ({
   setInspectCard: (inspectCard) => set({ inspectCard }),
   setInspectPlayer: (inspectPlayerId) => set({ inspectPlayerId }),
   resetView: () => set((s) => ({ viewResetNonce: s.viewResetNonce + 1 })),
+  pushEffect: (kind) => {
+    const id = ++effectSeq
+    set((s) => ({ effects: [...s.effects, { id, kind }] }))
+    setTimeout(() => set((s) => ({ effects: s.effects.filter((e) => e.id !== id) })), EFFECT_MS[kind])
+  },
 }))
 
 let errTimer: ReturnType<typeof setTimeout> | undefined

@@ -113,10 +113,12 @@ export function JsnModal({ game }: { game: ClientGame }) {
   if (!pending || pending.kind !== 'demand' || pending.stage !== 'jsn' || pending.awaitingId !== game.youId) return null
   const hasJsn = game.yourHand.some((c) => c.kind === 'action' && c.action === 'justsayno')
   const iAmAttacker = pending.attackerId === game.youId
+  const isRobBank = pending.action === 'robbank'
+  const acceptLabel = iAmAttacker ? 'Let it go' : isRobBank ? '💸 Give up your bank' : 'Accept'
   return (
     <div className="modal-backdrop">
       <div className="modal">
-        <h3>{iAmAttacker ? 'They said No!' : 'You are targeted!'}</h3>
+        <h3>{iAmAttacker ? 'They said No!' : isRobBank ? '🔫 Bank robbery!' : 'You are targeted!'}</h3>
         <p>{pending.description}</p>
         <div className="option-list">
           <button className="primary-btn" disabled={!hasJsn} onClick={() => send('respondJsn', { useJsn: true })}>
@@ -124,7 +126,7 @@ export function JsnModal({ game }: { game: ClientGame }) {
             {!hasJsn && ' (none in hand)'}
           </button>
           <button className="option-btn" onClick={() => send('respondJsn', { useJsn: false })}>
-            {iAmAttacker ? 'Let it go' : 'Accept'}
+            {acceptLabel}
           </button>
         </div>
       </div>

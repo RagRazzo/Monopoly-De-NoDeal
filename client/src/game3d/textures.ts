@@ -227,6 +227,9 @@ const ACTION_COLORS: Record<string, string> = {
   debtcollector: '#374151',
   birthday: '#e11d48',
   doublerent: '#b45309',
+  quadruplerent: '#9a3412',
+  robbank: '#1f2937',
+  tax: '#0f766e',
   house: '#16a34a',
   hotel: '#b91c1c',
 }

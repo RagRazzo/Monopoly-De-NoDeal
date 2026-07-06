@@ -14,6 +14,7 @@ import {
   PaymentModal,
   PromptModal,
 } from './Modals'
+import { TableEffects } from './TableEffects'
 
 // Live countdown against a server-side deadline, corrected for the skew
 // between the server clock and this device's clock.
@@ -249,6 +250,7 @@ export function Hud({ game }: { game: ClientGame }) {
         <ActionBar game={game} />
       </div>
       {error && <div className="toast">{error}</div>}
+      <TableEffects />
       <PromptModal />
       <PaymentModal game={game} />
       <JsnModal game={game} />
