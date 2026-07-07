@@ -227,11 +227,11 @@ io.on('connection', (socket) => {
     broadcast(game)
   })
 
-  socket.on('startGame', (_: unknown, ack: (a: Ack) => void) =>
-    ack(withGame(socket, (g, pid) => engine.startGame(g, pid))))
+  socket.on('startGame', ({ fun }: { fun?: boolean } = {}, ack: (a: Ack) => void) =>
+    ack(withGame(socket, (g, pid) => engine.startGame(g, pid, !!fun))))
 
-  socket.on('startWithBot', (_: unknown, ack: (a: Ack) => void) =>
-    ack(withGame(socket, (g, pid) => engine.startWithBot(g, pid))))
+  socket.on('startWithBot', ({ fun }: { fun?: boolean } = {}, ack: (a: Ack) => void) =>
+    ack(withGame(socket, (g, pid) => engine.startWithBot(g, pid, !!fun))))
 
   socket.on('playMoney', ({ cardId }: { cardId: string }, ack: (a: Ack) => void) =>
     ack(withGame(socket, (g, pid) => engine.playMoney(g, pid, cardId))))

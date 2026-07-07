@@ -89,6 +89,48 @@ test('Tax Day skips players with no complete sets', () => {
   assert.ok(engine.playAction(game, a, 'tax1', {}), 'nobody has a complete set to tax')
 })
 
+test('Market Crash wipes every table into the discard pile', () => {
+  const { game, a, b } = twoPlayerGame('MC1')
+  const attacker = game.players.find((p) => p.id === a)!
+  const target = game.players.find((p) => p.id === b)!
+  attacker.piles = [completeSet('red', 'red', 3)]
+  target.piles = [completeSet('navy', 'darkblue', 2), completeSet('green', 'green', 1)]
+  const discardBefore = game.discard.length
+  attacker.hand.push({ id: 'mc1', kind: 'action', action: 'marketcrash', value: 0 })
+  assert.equal(engine.playAction(game, a, 'mc1', {}), null)
+  assert.equal(attacker.piles.length, 0, 'own board wiped too')
+  assert.equal(target.piles.length, 0)
+  // 3 + 2 + 1 property cards + the played card all reach the discard pile.
+  assert.equal(game.discard.length, discardBefore + 6 + 1)
+  assert.equal(game.pending, null)
+})
+
+test('Go Fund Me lets a player gift bank cash, or decline', () => {
+  const { game, a, b } = twoPlayerGame('GF1')
+  const caster = game.players.find((p) => p.id === a)!
+  const donor = game.players.find((p) => p.id === b)!
+  donor.bank = [money('m1', 3), money('m2', 2)]
+  caster.hand.push({ id: 'gf1', kind: 'action', action: 'gofundme', value: 0 })
+  assert.equal(engine.playAction(game, a, 'gf1', {}), null)
+  // Voluntary: due is 0, so any (or no) selection is valid.
+  const t = (game.pending as any).demand.targets[0]
+  assert.equal(t.stage, 'pay')
+  assert.equal(t.amount, 0)
+  assert.equal(engine.submitPayment(game, b, ['m1']), null) // gift 3M
+  assert.equal(caster.bank.reduce((s, c) => s + c.value, 0), 3)
+  assert.equal(donor.bank.reduce((s, c) => s + c.value, 0), 2)
+})
+
+test('Go Fund Me gifts are limited to bank cash', () => {
+  const { game, a, b } = twoPlayerGame('GF2')
+  const donor = game.players.find((p) => p.id === b)!
+  donor.bank = [money('m1', 3)]
+  donor.piles = [completeSet('red', 'red', 1)] // a table property, not giftable
+  game.players.find((p) => p.id === a)!.hand.push({ id: 'gf1', kind: 'action', action: 'gofundme', value: 0 })
+  assert.equal(engine.playAction(game, a, 'gf1', {}), null)
+  assert.ok(engine.submitPayment(game, b, ['red-0']), 'cannot gift a table property')
+})
+
 test('Quadruple Rent multiplies rent by four and costs two plays', () => {
   const { game, a, b } = twoPlayerGame('QR1')
   const attacker = game.players.find((p) => p.id === a)!

@@ -1125,3 +1125,62 @@ input {
   80% { transform: scale(1); opacity: 1; }
   100% { transform: scale(1.05); opacity: 0; }
 }
+
+/* Market Crash: everything tumbles down with a red flash. */
+.fx-marketcrash {
+  animation: fx-crash 1.9s ease-in forwards;
+}
+.fx-marketcrash .fx-text {
+  color: #fca5a5;
+}
+.fx-marketcrash::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(127, 29, 29, 0.35);
+  animation: fx-flash 0.9s ease-out forwards;
+}
+@keyframes fx-crash {
+  0% { transform: translateY(-40vh) scale(1.1) rotate(-3deg); opacity: 0; }
+  20% { transform: translateY(0) scale(1.1) rotate(2deg); opacity: 1; }
+  30% { transform: translateY(6px) scale(1); }
+  40% { transform: translateY(0) scale(1); }
+  75% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(60vh) scale(0.8) rotate(6deg); opacity: 0; }
+}
+
+/* Go Fund Me: a warm rise with floating hearts. */
+.fx-gofundme {
+  animation: fx-rise 1.5s ease-out forwards;
+}
+.fx-gofundme .fx-text {
+  color: #5eead4;
+}
+@keyframes fx-rise {
+  0% { transform: translateY(40px) scale(0.6); opacity: 0; }
+  25% { transform: translateY(0) scale(1.12); opacity: 1; }
+  35% { transform: translateY(0) scale(1); }
+  80% { transform: translateY(-10px) scale(1); opacity: 1; }
+  100% { transform: translateY(-60px) scale(0.95); opacity: 0; }
+}
+
+/* Lobby "with fun cards" toggle */
+.fun-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #10151b;
+  border: 1px solid #2a3441;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  color: #e5e7eb;
+  font-weight: 600;
+}
+.fun-toggle input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: #f4c430;
+  flex: none;
+}

@@ -230,6 +230,8 @@ const ACTION_COLORS: Record<string, string> = {
   quadruplerent: '#9a3412',
   robbank: '#1f2937',
   tax: '#0f766e',
+  marketcrash: '#7f1d1d',
+  gofundme: '#0d9488',
   house: '#16a34a',
   hotel: '#b91c1c',
 }

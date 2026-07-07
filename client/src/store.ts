@@ -32,6 +32,8 @@ export type EffectKind =
   | 'forceddeal'
   | 'robbank'
   | 'robcaught'
+  | 'marketcrash'
+  | 'gofundme'
   | 'justsayno'
   | 'payment'
 
@@ -42,6 +44,8 @@ export interface TableEffect {
 
 function effectKindForLine(line: string): EffectKind | null {
   if (line.includes('🚨')) return 'robcaught'
+  if (line.includes('📉') || line.includes('MARKET CRASH')) return 'marketcrash'
+  if (line.includes('🙏') || line.includes('funded')) return 'gofundme'
   if (line.includes('deal-broke')) return 'dealbreaker'
   if (line.includes('sly-dealt')) return 'slydeal'
   if (line.includes('forced a deal')) return 'forceddeal'
@@ -57,6 +61,8 @@ const EFFECT_MS: Record<EffectKind, number> = {
   forceddeal: 1400,
   robbank: 1500,
   robcaught: 1900,
+  marketcrash: 1900,
+  gofundme: 1500,
   justsayno: 1300,
   payment: 1200,
 }

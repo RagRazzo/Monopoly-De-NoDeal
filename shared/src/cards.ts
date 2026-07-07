@@ -53,8 +53,19 @@ export type ActionName =
   | 'quadruplerent'
   | 'robbank'
   | 'tax'
+  | 'marketcrash'
+  | 'gofundme'
   | 'house'
   | 'hotel'
+
+// Non-standard "fun cards" — only shuffled in when the host enables them.
+export const FUN_ACTIONS: ReadonlySet<ActionName> = new Set<ActionName>([
+  'quadruplerent',
+  'robbank',
+  'tax',
+  'marketcrash',
+  'gofundme',
+])
 
 export const ACTION_INFO: Record<ActionName, { label: string; text: string }> = {
   dealbreaker: { label: 'Deal Breaker', text: 'Steal a complete property set from any player.' },
@@ -66,8 +77,10 @@ export const ACTION_INFO: Record<ActionName, { label: string; text: string }> = 
   birthday: { label: "It's My Birthday!", text: 'All players give you 2M as a gift.' },
   doublerent: { label: 'Double The Rent', text: 'Play with a rent card to double the amount charged.' },
   quadruplerent: { label: 'Quadruple Rent', text: 'Play with a rent card to charge 4x the rent (uses 2 plays).' },
-  robbank: { label: 'Rob Bank', text: 'Force one player to hand over their entire bank.' },
+  robbank: { label: 'Rob A Bank', text: 'Force one player to hand over their entire bank (or they Say No).' },
   tax: { label: 'Tax Day', text: 'Every opponent pays 1M for each complete set they own.' },
+  marketcrash: { label: 'Market Crash', text: 'Every property on every table is wiped into the discard pile.' },
+  gofundme: { label: 'Go Fund Me', text: 'Every other player may gift you any amount of bank cash — or decline.' },
   house: { label: 'House', text: 'Add 3M to the rent of a complete set (not rail/utility).' },
   hotel: { label: 'Hotel', text: 'Add 4M to the rent of a complete set that has a house.' },
 }
@@ -82,7 +95,8 @@ export type Card =
 interface Spec {
   baseCount: number
   make: () => Omit<Card, 'id'>
-  perPlayer?: boolean // count equals the player count (not scaled by deck size)
+  fun?: boolean // a non-standard "fun card" — only included when enabled
+  count?: (playerCount: number) => number // fixed count, overriding baseCount*scale
 }
 
 const SPECS: Spec[] = []
@@ -144,13 +158,25 @@ action('slydeal', 3, 3)
 action('debtcollector', 3, 3)
 action('birthday', 2, 3)
 action('doublerent', 1, 2)
-action('quadruplerent', 1, 1)
-action('tax', 2, 2)
 action('house', 3, 3)
 action('hotel', 4, 2)
 
-// Rob Bank: one card per player at the table (not scaled by deck size).
-SPECS.push({ baseCount: 1, perPlayer: true, make: () => ({ kind: 'action', action: 'robbank', value: 3 }) })
+// ---- Fun cards (only shuffled in when the host enables them) ----
+// Counts are fixed per game (not scaled by deck size) and deliberately small,
+// so a single copy stays a rare event across every table size.
+const fun = (
+  name: ActionName,
+  value: number,
+  count: (playerCount: number) => number,
+) => SPECS.push({ baseCount: 1, fun: true, count, make: () => ({ kind: 'action', action: name, value }) })
+
+fun('quadruplerent', 1, () => 2)
+fun('tax', 2, () => 1)
+fun('gofundme', 0, () => 2)
+// Rob A Bank: 1 card at 2-4 players, 2 cards at 5-6 players.
+fun('robbank', 3, (n) => (n <= 4 ? 1 : 2))
+// Market Crash: a single copy, and never in a 2-player game (too swingy).
+fun('marketcrash', 0, (n) => (n >= 3 ? 1 : 0))
 
 export function deckScale(playerCount: number): number {
   if (playerCount <= 4) return 1
@@ -160,12 +186,17 @@ export function deckScale(playerCount: number): number {
 
 export type Rng = () => number // uniform [0, 1)
 
-export function buildDeck(playerCount: number, rng: Rng): Card[] {
+export interface DeckOptions {
+  fun?: boolean // include the non-standard fun cards
+}
+
+export function buildDeck(playerCount: number, rng: Rng, opts: DeckOptions = {}): Card[] {
   const scale = deckScale(playerCount)
   const deck: Card[] = []
   let n = 0
   for (const spec of SPECS) {
-    const count = spec.perPlayer ? playerCount : Math.max(1, Math.round(spec.baseCount * scale))
+    if (spec.fun && !opts.fun) continue
+    const count = spec.count ? spec.count(playerCount) : Math.max(1, Math.round(spec.baseCount * scale))
     for (let i = 0; i < count; i++) {
       deck.push({ ...spec.make(), id: `c${n++}` } as Card)
     }

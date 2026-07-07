@@ -222,6 +222,31 @@ export function actionsForCard(game: ClientGame, card: Card): CardAction[] {
             },
           })
           break
+        case 'marketcrash':
+          actions.push({
+            label: '📉 Play — CRASH every board',
+            primary: true,
+            onClick: () => {
+              setPrompt({
+                title: 'Market Crash wipes EVERY table — including yours. Play it?',
+                options: [
+                  { label: '📉 Crash the market!', onPick: () => playAction(card.id) },
+                ],
+              })
+            },
+          })
+          break
+        case 'gofundme':
+          actions.push({
+            label: '🙏 Play — start a Go Fund Me',
+            primary: true,
+            onClick: () => {
+              if (!others(game).some((p) => p.bank.length > 0))
+                return toast('No one has bank cash to fund you')
+              playAction(card.id)
+            },
+          })
+          break
         case 'slydeal': {
           actions.push({
             label: 'Steal a property…',

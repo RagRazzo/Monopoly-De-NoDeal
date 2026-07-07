@@ -15,6 +15,8 @@ const SPECS: Record<EffectKind, Spec> = {
   forceddeal: { className: 'fx-forceddeal', emoji: '🔄', text: 'FORCED DEAL' },
   robbank: { className: 'fx-robbank', emoji: '🔫', text: 'ROBBED!' },
   robcaught: { className: 'fx-robcaught', emoji: '🚨', text: 'BUSTED!' },
+  marketcrash: { className: 'fx-marketcrash', emoji: '📉', text: 'MARKET CRASH' },
+  gofundme: { className: 'fx-gofundme', emoji: '🙏', text: 'GO FUND ME' },
   justsayno: { className: 'fx-justsayno', emoji: '🚫', text: 'NO!' },
   payment: { className: 'fx-payment', emoji: '🪙', text: '' },
 }

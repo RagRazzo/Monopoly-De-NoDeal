@@ -37,6 +37,7 @@ export type DemandAction =
   | 'dealbreaker'
   | 'robbank'
   | 'tax'
+  | 'gofundme'
 
 export interface TargetState {
   playerId: string

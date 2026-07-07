@@ -140,7 +140,7 @@ export type SfxName =
   | 'card' | 'draw' | 'coin' | 'property' | 'payment' | 'shuffle' | 'discard' | 'pop'
   | 'passgo' | 'rent' | 'dealbreaker' | 'justsayno' | 'slydeal' | 'forceddeal'
   | 'debtcollector' | 'birthday' | 'building' | 'yourturn' | 'timeout' | 'win' | 'lose'
-  | 'robbank' | 'siren' | 'tax'
+  | 'robbank' | 'siren' | 'tax' | 'marketcrash' | 'gofundme'
 
 const SFX: Record<SfxName, (t: number) => void> = {
   card: (t) => noise({ t, dur: 0.1, f: 2600, v: 0.14 }),
@@ -226,6 +226,16 @@ const SFX: Record<SfxName, (t: number) => void> = {
     tone({ f: 1319, t, type: 'triangle', d: 0.12, v: 0.12 })
     tone({ f: 1760, t: t + 0.12, type: 'triangle', d: 0.26, v: 0.12 })
     noise({ t: t + 0.02, dur: 0.06, f: 3200, v: 0.08 })
+  },
+  marketcrash: (t) => {
+    // A downward crash: falling tone + shattering-glass noise burst.
+    tone({ f: 440, f1: 55, t, type: 'sawtooth', d: 0.6, v: 0.28 })
+    for (let i = 0; i < 5; i++) noise({ t: t + 0.1 + i * 0.05, dur: 0.09, f: 2600 + i * 400, q: 1.4, v: 0.14 })
+    tone({ f: 90, f1: 40, t: t + 0.1, type: 'square', d: 0.5, v: 0.3 })
+  },
+  gofundme: (t) => {
+    // Warm, hopeful rising arpeggio.
+    ;[60, 64, 67, 72].forEach((m, i) => tone({ f: hz(m + 12), t: t + i * 0.09, type: 'triangle', d: 0.24, v: 0.11 }))
   },
   timeout: (t) => tone({ f: 220, f1: 165, t, type: 'square', d: 0.3, v: 0.07 }),
   win: (t) => {
@@ -324,8 +334,10 @@ function stopMusic() {
 
 function sfxForLine(line: string): SfxName | null {
   if (line.includes('🏆')) return null // handled via the phase change
-  if (line.includes('🚨')) return 'siren' // Rob Bank blocked — police sirens
-  if (line.includes('Rob Bank') || line.includes('robbed')) return 'robbank'
+  if (line.includes('🚨')) return 'siren' // Rob A Bank blocked — police sirens
+  if (line.includes('📉') || line.includes('MARKET CRASH')) return 'marketcrash'
+  if (line.includes('🙏') || line.includes('Go Fund Me') || line.includes('funded')) return 'gofundme'
+  if (line.includes('Rob A Bank') || line.includes('Rob Bank') || line.includes('robbed')) return 'robbank'
   if (line.includes('Tax Day')) return 'tax'
   if (line.includes('Deal Breaker') || line.includes('deal-broke')) return 'dealbreaker'
   if (line.includes('Just Say No')) return 'justsayno'

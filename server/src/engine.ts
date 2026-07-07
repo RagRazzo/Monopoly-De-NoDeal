@@ -119,21 +119,21 @@ export function addBot(game: Game): string | null {
 
 // Host-only solo mode: adds a CPU opponent and starts immediately.
 // Only allowed while the host is alone in the room.
-export function startWithBot(game: Game, byId: string): string | null {
+export function startWithBot(game: Game, byId: string, fun = false): string | null {
   if (game.phase !== 'lobby') return 'Game already started'
   if (byId !== game.hostId) return 'Only the host can start a CPU game'
   if (game.players.length !== 1) return 'CPU mode is only available while you are alone in the room'
   const err = addBot(game)
   if (err) return err
-  return startGame(game, byId)
+  return startGame(game, byId, fun)
 }
 
-export function startGame(game: Game, byId: string): string | null {
+export function startGame(game: Game, byId: string, fun = false): string | null {
   if (game.phase !== 'lobby') return 'Game already started'
   if (byId !== game.hostId) return 'Only the host can start the game'
   const n = game.players.length
   if (n < MIN_PLAYERS) return `Need at least ${MIN_PLAYERS} players`
-  game.deck = buildDeck(n, rng)
+  game.deck = buildDeck(n, rng, { fun })
   game.phase = 'playing'
   for (const p of game.players) p.hand = game.deck.splice(0, 5)
   game.turnIndex = crypto.randomInt(n)
@@ -392,6 +392,16 @@ function initTarget(game: Game, demand: Demand): boolean {
   const t = demand.targets[demand.index]
   const target = findPlayer(game, t.playerId)!
   if (target.left) return false
+  // Go Fund Me is a voluntary gift: the target lands on the pay screen with a
+  // due of 0 (so they can give any amount of bank cash, or decline).
+  if (demand.action === 'gofundme') {
+    if (target.bank.length === 0) return false
+    t.amount = 0
+    t.stage = 'pay'
+    t.awaiting = t.playerId
+    t.jsnDepth = 0
+    return true
+  }
   const amount = targetAmount(demand, target)
   if (amount !== undefined && (amount <= 0 || playerWorth(target) === 0)) {
     log(game, `${target.name} has nothing to pay`)
@@ -531,12 +541,15 @@ export function submitPayment(game: Game, pid: string, cardIds: string[]): strin
   const payer = findPlayer(game, pid)!
   const attacker = findPlayer(game, demand.attackerId)!
   const amount = t.amount ?? demand.amount!
+  const gift = demand.action === 'gofundme'
 
-  const pool = payableCards(payer)
+  // Go Fund Me gifts come from bank cash only; everything else may be paid
+  // from the bank or from table cards.
+  const pool = gift ? [...payer.bank] : payableCards(payer)
   const chosen: Card[] = []
   for (const id of new Set(cardIds)) {
     const card = pool.find((c) => c.id === id)
-    if (!card) return 'Invalid payment card'
+    if (!card) return gift ? 'You can only gift bank cash' : 'Invalid payment card'
     chosen.push(card)
   }
   const total = chosen.reduce((s, c) => s + c.value, 0)
@@ -544,7 +557,11 @@ export function submitPayment(game: Game, pid: string, cardIds: string[]): strin
   if (total < due) return `Payment must be at least ${due}M (no change is given)`
 
   transferPayment(game, payer, attacker, chosen)
-  log(game, `${payer.name} paid ${attacker.name} ${total}M`)
+  if (gift) {
+    log(game, total > 0 ? `${payer.name} funded ${attacker.name} ${total}M` : `${payer.name} declined to fund ${attacker.name}`)
+  } else {
+    log(game, `${payer.name} paid ${attacker.name} ${total}M`)
+  }
   advanceDemand(game)
   return null
 }
@@ -713,7 +730,7 @@ export function playAction(game: Game, pid: string, cardId: string, opts: PlayAc
       takeFromHand(player, cardId)
       game.discard.push(card)
       game.playsLeft--
-      log(game, `${player.name} played Rob Bank on ${target.name}`)
+      log(game, `${player.name} played Rob A Bank on ${target.name}`)
       startDemand(game, { action: 'robbank', attackerId: pid, targets: makeTargets([target.id]), index: 0 })
       return null
     }
@@ -725,6 +742,31 @@ export function playAction(game: Game, pid: string, cardId: string, opts: PlayAc
       game.playsLeft--
       log(game, `${player.name} played Tax Day — 1M per complete set`)
       startDemand(game, { action: 'tax', attackerId: pid, targets: makeTargets(targets.map((p) => p.id)), index: 0 })
+      return null
+    }
+    case 'marketcrash': {
+      takeFromHand(player, cardId)
+      game.discard.push(card)
+      game.playsLeft--
+      let wiped = 0
+      for (const p of activePlayers(game)) {
+        for (const pile of p.piles) {
+          game.discard.push(...pile.cards)
+          wiped += pile.cards.length
+        }
+        p.piles = []
+      }
+      log(game, `📉 ${player.name} triggered a MARKET CRASH — ${wiped} table cards wiped out!`)
+      return null
+    }
+    case 'gofundme': {
+      const targets = activePlayers(game).filter((p) => p.id !== pid && p.bank.length > 0)
+      if (targets.length === 0) return 'No one has bank cash to fund you'
+      takeFromHand(player, cardId)
+      game.discard.push(card)
+      game.playsLeft--
+      log(game, `🙏 ${player.name} started a Go Fund Me`)
+      startDemand(game, { action: 'gofundme', attackerId: pid, targets: makeTargets(targets.map((p) => p.id)), index: 0 })
       return null
     }
     case 'justsayno':

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { COLOR_INFO, cardLabel, type Card } from '@shared/cards'
+import { ACTION_INFO, COLOR_INFO, cardLabel, type ActionName, type Card } from '@shared/cards'
 import { isPileComplete, pilePropertyCount } from '@shared/logic'
 import type { ClientGame, ClientPlayer } from '@shared/types'
 import { getCardImageURL } from '../game3d/textures'
@@ -62,22 +62,56 @@ export function PaymentModal({ game }: { game: ClientGame }) {
   if (!pending || pending.kind !== 'demand' || pending.stage !== 'pay' || pending.awaitingId !== game.youId) return null
 
   const my = me(game)
-  const pool: Card[] = [...my.bank, ...my.piles.flatMap((p) => p.cards)]
-  const worth = pool.reduce((s, c) => s + c.value, 0)
-  const due = Math.min(pending.amount ?? 0, worth)
-  const total = pool.filter((c) => picked.includes(c.id)).reduce((s, c) => s + c.value, 0)
   const attacker = game.players.find((p) => p.id === pending.attackerId)
-  // Just Say No is played straight from here (grayed out when none in hand).
+  const gift = pending.action === 'gofundme'
+  // Go Fund Me gifts come from bank cash only; everything else can be paid
+  // from the bank or from table cards.
+  const pool: Card[] = gift ? [...my.bank] : [...my.bank, ...my.piles.flatMap((p) => p.cards)]
+  const worth = pool.reduce((s, c) => s + c.value, 0)
+  const due = gift ? 0 : Math.min(pending.amount ?? 0, worth)
+  const total = pool.filter((c) => picked.includes(c.id)).reduce((s, c) => s + c.value, 0)
+  // Human-readable reason for the payment, e.g. "Rent", "Debt Collector".
+  const reason =
+    pending.action === 'rent'
+      ? 'Rent'
+      : pending.action && pending.action !== 'discard'
+        ? ACTION_INFO[pending.action as ActionName]?.label ?? 'Payment'
+        : 'Payment'
   const hasJsn = game.yourHand.some((c) => c.kind === 'action' && c.action === 'justsayno')
 
   const toggle = (id: string) =>
     setPicked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
 
+  if (gift) {
+    return (
+      <div className="modal-backdrop">
+        <div className="modal wide">
+          <h3>🙏 Go Fund {attacker?.name}</h3>
+          <p className="muted">Gift any amount of your bank cash to {attacker?.name}, or decline.</p>
+          <div className="chip-grid">
+            {pool.map((c) => (
+              <CardChip key={c.id} card={c} selected={picked.includes(c.id)} onClick={() => toggle(c.id)} />
+            ))}
+          </div>
+          <div className="modal-footer">
+            <button className="option-btn" onClick={() => send('submitPayment', { cardIds: [] })}>
+              Decline
+            </button>
+            <span className="ok">Gift {total}M</span>
+            <button className="primary-btn" disabled={total === 0} onClick={() => send('submitPayment', { cardIds: picked })}>
+              Fund {attacker?.name}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="modal-backdrop">
       <div className="modal wide">
         <h3>
-          Pay {attacker?.name} {pending.amount}M
+          {reason} — pay {attacker?.name} {pending.amount}M
         </h3>
         <p className="muted">
           Select cards worth at least {due}M — no change is given.
@@ -94,7 +128,7 @@ export function PaymentModal({ game }: { game: ClientGame }) {
             disabled={!hasJsn}
             onClick={() => send('respondJsn', { useJsn: true })}
           >
-            🛑 Use Just Say No{!hasJsn && ' (none in hand)'}
+            🛑 Say No{!hasJsn && ' (none in hand)'}
           </button>
           <span className={total >= due ? 'ok' : 'bad'}>
             Selected {total}M / {due}M

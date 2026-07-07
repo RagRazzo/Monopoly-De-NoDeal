@@ -27,12 +27,14 @@ function describePending(game: Game): ClientPending | null {
   const amount = t.amount ?? d.amount
   const actionLabel = d.action === 'rent' ? 'Rent' : ACTION_INFO[d.action].label
   let description: string
-  if (t.stage === 'pay') {
+  if (d.action === 'gofundme') {
+    description = `${name(t.playerId)} may gift ${name(d.attackerId)} bank cash (Go Fund Me)`
+  } else if (t.stage === 'pay') {
     description = `${name(t.playerId)} must pay ${name(d.attackerId)} ${amount}M (${actionLabel})`
   } else if (t.awaiting === d.attackerId) {
     description = `${name(t.playerId)} said No! ${name(d.attackerId)} may counter with Just Say No`
   } else if (d.action === 'robbank') {
-    description = `Rob Bank hits ${name(t.playerId)} — hand over your bank or Just Say No`
+    description = `Rob A Bank hits ${name(t.playerId)} — hand over your bank or Just Say No`
   } else {
     description = `${actionLabel} targets ${name(t.playerId)} — they may pay/accept or Just Say No`
   }

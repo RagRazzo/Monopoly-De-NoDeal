@@ -22,10 +22,10 @@ function totalCards(game: Game): number {
   return n
 }
 
-function makeGame(players: number): Game {
+function makeGame(players: number, fun = false): Game {
   const game = createGame('TEST1', 'P0', 'id0', 't0')
   for (let i = 1; i < players; i++) engine.addPlayer(game, `P${i}`, `id${i}`, `t${i}`)
-  assert.equal(engine.startGame(game, 'id0'), null)
+  assert.equal(engine.startGame(game, 'id0', fun), null)
   return game
 }
 
@@ -46,10 +46,13 @@ function respondToPending(game: Game) {
     assert.equal(engine.respondJsn(game, t.awaiting, use), null)
     return
   }
-  // Payment: pick cards greedily until covered.
+  // Payment: pick cards greedily until covered. Tax/Go Fund Me carry a
+  // per-target amount; Go Fund Me may only be paid from the bank (due 0, so
+  // this donor simply declines).
   const payer = game.players.find((p) => p.id === t.playerId)!
-  const due = Math.min(d.amount!, playerWorth(payer))
-  const pool = payableCards(payer).sort((a, b) => a.value - b.value)
+  const amount = t.amount ?? d.amount ?? 0
+  const due = Math.min(amount, playerWorth(payer))
+  const pool = (d.action === 'gofundme' ? [...payer.bank] : payableCards(payer)).sort((a, b) => a.value - b.value)
   const ids: string[] = []
   let total = 0
   for (const c of pool) {
@@ -141,8 +144,20 @@ function tryRandomPlay(game: Game): boolean {
             if (err) return engine.playMoney(game, player.id, card.id)
             return null
           }
+          case 'robbank': {
+            const t = others.find((o) => o.bank.length > 0)
+            if (t) return engine.playAction(game, player.id, card.id, { targetPlayerId: t.id })
+            return engine.playMoney(game, player.id, card.id)
+          }
+          case 'tax':
+          case 'gofundme': {
+            const err = engine.playAction(game, player.id, card.id, {})
+            return err ? engine.playMoney(game, player.id, card.id) : null
+          }
+          case 'marketcrash':
+            return engine.playAction(game, player.id, card.id, {})
           default:
-            // justsayno / doublerent: bank them
+            // justsayno / doublerent / quadruplerent: bank them
             return engine.playMoney(game, player.id, card.id)
         }
       }
@@ -151,8 +166,8 @@ function tryRandomPlay(game: Game): boolean {
   return attempt() === null
 }
 
-function runGame(players: number): Game {
-  const game = makeGame(players)
+function runGame(players: number, fun = false): Game {
+  const game = makeGame(players, fun)
   const expectedCards = totalCards(game)
   let steps = 0
   while (game.phase === 'playing') {
@@ -174,6 +189,12 @@ function runGame(players: number): Game {
 test('random games finish cleanly at every player count', () => {
   for (const players of [2, 3, 4, 5, 6]) {
     for (let i = 0; i < 4; i++) runGame(players)
+  }
+})
+
+test('random games with fun cards finish cleanly and conserve cards', () => {
+  for (const players of [2, 3, 4, 5, 6]) {
+    for (let i = 0; i < 4; i++) runGame(players, true)
   }
 })
 

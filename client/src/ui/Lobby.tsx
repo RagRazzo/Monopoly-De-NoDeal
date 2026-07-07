@@ -6,6 +6,7 @@ import { useStore } from '../store'
 export function Lobby({ game }: { game: ClientGame }) {
   const error = useStore((s) => s.error)
   const [copied, setCopied] = useState(false)
+  const [fun, setFun] = useState(false)
   const isHost = game.players.find((p) => p.id === game.youId)?.isHost
   const canStart = game.players.length >= MIN_PLAYERS
 
@@ -61,11 +62,20 @@ export function Lobby({ game }: { game: ClientGame }) {
         </ul>
         {isHost ? (
           <>
-            <button className="primary-btn big" disabled={!canStart} onClick={() => send('startGame')}>
+            <label className="fun-toggle">
+              <input type="checkbox" checked={fun} onChange={(e) => setFun(e.target.checked)} />
+              <span>
+                🎉 With fun cards
+                <small className="option-sub">
+                  Adds Rob A Bank, Tax Day, Quadruple Rent, Market Crash &amp; Go Fund Me
+                </small>
+              </span>
+            </label>
+            <button className="primary-btn big" disabled={!canStart} onClick={() => send('startGame', { fun })}>
               {canStart ? 'Start game' : `Waiting for players (min ${MIN_PLAYERS})`}
             </button>
             {game.players.length === 1 && (
-              <button className="option-btn cpu-btn" onClick={() => send('startWithBot')}>
+              <button className="option-btn cpu-btn" onClick={() => send('startWithBot', { fun })}>
                 🤖 Play solo vs CPU
               </button>
             )}

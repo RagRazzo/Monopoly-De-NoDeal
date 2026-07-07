@@ -164,6 +164,8 @@ function keepScore(card: Card): number {
       return 55
     case 'robbank':
       return 45
+    case 'marketcrash':
+      return 42
     case 'passgo':
       return 38
     case 'slydeal':
@@ -181,6 +183,8 @@ function keepScore(card: Card): number {
     case 'doublerent':
     case 'quadruplerent':
       return 24
+    case 'gofundme':
+      return 18
   }
 }
 
@@ -243,6 +247,7 @@ function tryBestPlay(game: Game, bot: Player): boolean {
     tryRent(game, bot) ||
     tryRobBank(game, bot) ||
     tryTax(game, bot) ||
+    tryMarketCrash(game, bot) ||
     tryDebtCollector(game, bot) ||
     tryBirthday(game, bot) ||
     tryBankMoney(game, bot) ||
@@ -272,6 +277,22 @@ function tryTax(game: Game, bot: Player): boolean {
   )
   if (take < 2) return false
   return ok(engine.playAction(game, bot.id, card.id, {}))
+}
+
+// Market Crash wipes every table (the bot's own included), so only pull it
+// when clearly behind — to reset a leader — not when we're the one ahead.
+function tryMarketCrash(game: Game, bot: Player): boolean {
+  const card = bot.hand.find((c) => c.kind === 'action' && c.action === 'marketcrash')
+  if (!card) return false
+  const sets = (p: Player) => p.piles.filter(isPileComplete).length
+  const tableCards = (p: Player) => p.piles.reduce((s, pile) => s + pile.cards.length, 0)
+  const mySets = sets(bot)
+  const opps = opponents(game, bot)
+  const leaderSets = Math.max(0, ...opps.map(sets))
+  const oppTable = Math.max(0, ...opps.map(tableCards))
+  // Reset a set leader we can't match, or blow up a big board while ours is bare.
+  const worthIt = (leaderSets >= 2 && leaderSets > mySets) || (mySets === 0 && oppTable >= 4 && tableCards(bot) <= 1)
+  return worthIt && ok(engine.playAction(game, bot.id, card.id, {}))
 }
 
 function tryPassGo(game: Game, bot: Player): boolean {
