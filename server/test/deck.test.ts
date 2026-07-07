@@ -33,7 +33,7 @@ test('fun cards use fixed per-game counts when enabled', () => {
     assert.equal(count(deck, 'tax'), 1, `tax @${n}`)
     assert.equal(count(deck, 'quadruplerent'), 2, `quad @${n}`)
     assert.equal(count(deck, 'gofundme'), 2, `gofundme @${n}`)
-    assert.equal(count(deck, 'robbank'), n <= 4 ? 1 : 2, `robbank @${n}`)
+    assert.equal(count(deck, 'robbank'), 2, `robbank @${n}`)
     assert.equal(count(deck, 'marketcrash'), n >= 3 ? 1 : 0, `crash @${n}`)
   }
 })

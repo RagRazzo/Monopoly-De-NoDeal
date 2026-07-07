@@ -173,8 +173,8 @@ const fun = (
 fun('quadruplerent', 1, () => 2)
 fun('tax', 2, () => 1)
 fun('gofundme', 0, () => 2)
-// Rob A Bank: 1 card at 2-4 players, 2 cards at 5-6 players.
-fun('robbank', 3, (n) => (n <= 4 ? 1 : 2))
+// Rob A Bank: 2 cards per game, regardless of player count.
+fun('robbank', 3, () => 2)
 // Market Crash: a single copy, and never in a 2-player game (too swingy).
 fun('marketcrash', 0, (n) => (n >= 3 ? 1 : 0))
 
