@@ -67,41 +67,58 @@ export function seatPositions(game: ClientGame, aspect = 1.78): Map<string, Fram
   return map
 }
 
-// Each seat gets a compact play area centred in front of it. The whole
-// footprint is kept narrow (tight pile spacing, the bank tucked close to the
-// piles rather than off to the side) so neighbouring seats never overlap,
-// even with 6 players around the ring. Tap a nameplate to inspect a table
-// in full detail.
-function playerCards(out: Placement[], p: ClientPlayer, f: Frame, mine: boolean) {
-  const scale = mine ? 0.82 : 0.6
-  const step = mine ? 0.74 : 0.56 // horizontal spacing between piles
-  // Property piles: a centred row, each card fanned slightly toward center.
+// Each seat gets a compact play area centred in front of it. Property sets and
+// the bank are laid out in evenly spaced columns; the column pitch is always a
+// touch wider than a card, so no two cards ever share the same footprint. That
+// gap is what stops co-planar cards from z-fighting (the "flickering"). A
+// tangential width budget keeps the whole area from spilling into neighbouring
+// seats, even with 6 players each holding several sets — cards shrink to fit
+// rather than overlap. Tap a nameplate to inspect a table in full detail.
+const COL_GAP = 1.08 // column pitch as a multiple of card width (>1 => a visible gap)
+
+function playerCards(out: Placement[], p: ClientPlayer, f: Frame, mine: boolean, ring: number) {
+  const baseScale = mine ? 0.82 : 0.6
+  // Seats sit `4.4 * ring` apart, so the per-seat width budget scales with the
+  // ring too — on narrow (portrait) screens the ring tightens and the play
+  // areas must shrink in step to keep neighbouring seats from colliding.
+  const budget = (mine ? 3.8 : 3.0) * ring // max tangential span before cards shrink to fit
   const pileCount = p.piles.length
-  const spanX = (pileCount - 1) * step
-  const startX = -spanX / 2 - step * 0.45
+  const bankCol = p.bank.length > 0 ? 1 : 0
+  const cols = Math.max(1, pileCount + bankCol)
+  // Shrink the cards if laying every column out with a full card-plus-gap pitch
+  // would overrun the seat's width budget.
+  const span = cols * baseScale * COL_GAP
+  const scale = span > budget ? baseScale * (budget / span) : baseScale
+  const step = scale * COL_GAP
+  const spanX = (cols - 1) * step
+  const startX = -spanX / 2
+  // Property piles: one column each, cards stacked back-to-front within a column.
   p.piles.forEach((pile, pi) => {
+    const cx = startX + pi * step
     pile.cards.forEach((card, ci) => {
       out.push({
         key: card.id,
         card,
-        pos: local(f, startX + pi * step, 0.02 + ci * 0.012, -0.1 - ci * 0.3),
+        pos: local(f, cx, 0.02 + ci * 0.012, -0.1 - ci * 0.3),
         rot: flatRot(f),
         scale,
         pileHint: pile.id,
       })
     })
   })
-  // Bank: a tight stack tucked just to the right of the property row.
-  const bankX = spanX / 2 + step * 0.9
-  p.bank.forEach((card, i) => {
-    out.push({
-      key: card.id,
-      card,
-      pos: local(f, bankX, 0.02 + i * 0.012, 0.3),
-      rot: flatRot(f, (i % 3 - 1) * 0.08),
-      scale,
+  // Bank: its own column just past the property row, tucked slightly forward.
+  if (bankCol) {
+    const cx = startX + pileCount * step
+    p.bank.forEach((card, i) => {
+      out.push({
+        key: card.id,
+        card,
+        pos: local(f, cx, 0.02 + i * 0.012, 0.3),
+        rot: flatRot(f, (i % 3 - 1) * 0.05),
+        scale,
+      })
     })
-  })
+  }
   // Opponents' hands: fanned card backs behind their play area.
   if (!mine) {
     const n = Math.min(p.handCount, 8)
@@ -125,6 +142,7 @@ export function computePlacements(
 ): Placement[] {
   const out: Placement[] = []
   const seats = seatPositions(game, aspect)
+  const ring = ringScale(aspect)
 
   // Draw deck (center-left) and discard (center-right).
   const deckShown = Math.min(game.deckCount, 12)
@@ -152,7 +170,7 @@ export function computePlacements(
 
   for (const p of game.players) {
     if (p.left) continue
-    playerCards(out, p, seats.get(p.id)!, p.id === game.youId)
+    playerCards(out, p, seats.get(p.id)!, p.id === game.youId, ring)
   }
 
   // My hand: a fan floating in front of the camera's default view.
