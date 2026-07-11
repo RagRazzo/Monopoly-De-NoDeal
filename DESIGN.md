@@ -446,13 +446,25 @@ the solutions from the start:
    right, like a real hand), opponents' hand backs `y = 0.6 + i * 0.02,
    z = 1.35 + i * 0.015`, table piles/banks lifted `y = 0.02 + i * 0.012` per
    card. These offsets are invisible but kill the entire flicker class.
-2. **Cards piling into an unreadable heap on the table.** Stacked table cards
-   need *deliberate* spreading, not just lift: piles fan each card toward the
-   table center (`z = -0.15 - i * 0.38` in seat-local space) so every card's
-   header stays visible; bank stacks get a small alternating spin
-   (`(i % 3 - 1) * 0.09`) so a pile of money reads as a pile, not one card.
-   Cap what you render for unbounded stacks (deck shows ≤ 12 backs, opponent
-   hands ≤ 8 backs) — counts carry the truth, geometry only needs to suggest it.
+2. **Cards overlapping on the table (the hardest layout bug).** With 6
+   players each holding several sets, adjacent piles' footprints overlapped —
+   co-planar overlapping planes z-fight and the whole table shimmered, and
+   neighbouring *seats* collided too. Two-part fix (`layout.ts`):
+   - Lay each seat's sets and bank in evenly spaced **columns whose pitch is
+     always a touch wider than a card** (`COL_GAP = 1.08` × card width), so no
+     two cards ever share a footprint. Within a column, cards stack
+     back-to-front (`z = -0.1 - i * 0.3`) with tiny lifts (`y += 0.012/card`);
+     bank stacks get a small alternating spin so money reads as a pile.
+   - Give each seat a **tangential width budget** (scaled with the seat ring,
+     which tightens on portrait): if `columns × cardWidth × COL_GAP` exceeds
+     the budget, *shrink the cards to fit* rather than letting them overlap.
+   Then lock it in with a **layout regression test**: build a worst-case
+   6-player table and assert no two co-planar cards overlap, across a range
+   of aspect ratios and set counts. Layout-as-pure-function (§8.2) is what
+   makes geometry testable — keep that property.
+   Also cap what you render for unbounded stacks (deck shows ≤ 12 backs,
+   opponent hands ≤ 8 backs) — counts carry the truth, geometry only needs to
+   suggest it.
 3. **Hand cards jamming/spilling on narrow screens.** A fixed fan width either
    overflows a portrait screen or squeezes cards into a jam. Fix: compute the
    fan spread from the **camera frustum itself** — visible width at the hand's
@@ -462,15 +474,21 @@ the solutions from the start:
 4. **A fixed camera can't serve both landscape and portrait.** The fix that
    unlocked mobile: a single `viewFit(aspect)` function (in `layout.ts`, used
    by *both* the camera rig and the layout math so they can never disagree)
-   returns a fit factor that pulls the camera up/back (up to 1.55×) and widens
-   the FOV (46° → 60°) as the viewport narrows. Everything camera-relative —
-   hand position, hand scale, orbit distance limits — multiplies by `fit`.
-5. **Camera flexibility with guardrails.** Players want to zoom in on cards
-   and peek around the table, so don't lock the camera — constrain it:
-   `OrbitControls` with pan disabled, zoom range `7·fit … 15·fit`, polar angle
-   clamped to `0.35 … 1.25` rad and azimuth to `±0.8` rad. One-finger orbit and
-   pinch-zoom on touch. The clamps matter as much as the freedom: players can
-   never end up under the table, behind an opponent, or lost in space.
+   returns a fit factor that pulls the camera up/back and widens the FOV as
+   the viewport narrows. A second pass added `ringScale`: the seating ring
+   *itself* compresses on narrow screens (with per-seat play areas shrinking
+   in step — see fix 2) so 3–6 players' cards and nameplates all stay in
+   frame in portrait. Everything camera-relative — hand position, hand scale,
+   orbit distance limits — multiplies by `fit`.
+5. **Start the camera constrained, then loosen it — with a reset button.**
+   `OrbitControls` with pan disabled, one-finger orbit and pinch-zoom on
+   touch. The first release clamped hard (zoom `7…15`, polar `0.35…1.25`,
+   azimuth `±0.8`) and players immediately wanted more: to zoom right into a
+   card and look around the table. The shipped answer is much freer — zoom
+   `4.5…24 (·fit)`, polar `0.12…1.45`, azimuth `±1.4` — **paired with a 🎥
+   reset-view button** that recenters the camera. The reset button is what
+   makes freedom safe: once lost-in-space is one tap from fixed, you can
+   afford generous ranges. Keep pan disabled so there's still an anchor.
 6. **3D zoom is not enough to read a card.** Even with orbit zoom, card text
    on a phone is too small. Two 2D escape hatches fixed it: a 🔍 **full-size
    card zoom** overlay for the selected hand card (renders the same canvas
@@ -486,6 +504,34 @@ the solutions from the start:
 8. **Whose-turn visibility.** Playtesters missed their own turn: fix was a
    highly visible turn timer/banner state, your-turn chime (§8.5), and turn
    highlighting on nameplates. Assume players are distracted between turns.
+9. **3D overlays vs. 2D chrome collide.** The local player's floating
+   nameplate projected exactly onto the action bar, covering buttons. Fix:
+   don't render *your own* 3D nameplate at all — replace it with a compact
+   "You" chip in the 2D top bar (same stats, tappable to self-inspect, and it
+   degrades gracefully on small screens). Rule: information about *you*
+   belongs in screen-space UI; 3D overlays are for *others* around the table.
+   Similarly, the event log works better as a side panel than a full-screen
+   overlay (which trapped users in portrait).
+10. **Put server prompts where the decision is.** The first flow showed
+    payment targets an up-front "Just Say No?" popup before the payment
+    screen — players didn't understand what they'd be blocking. The fix:
+    drop targets straight onto the payment screen with "Say No" as an inline
+    button (greyed out when they don't hold the card, showing the reason and
+    payee: "Rent — pay Alice 5M"), plus a server-validated `backToJsn` revert
+    so choosing to pay isn't a one-way door. Lesson: an interrupt's response
+    options should live on one screen with full context, and reverting an
+    un-committed choice should be an engine action, not client trickery.
+11. **Same-color piles silently split** (an engine bug the UI exposed):
+    overflowing a set or stealing a color the recipient already collects
+    created a second pile of the same color. Fix: a `consolidateColor()`
+    normalization called after *every* mutation that re-homes property cards.
+    Lesson: when a zone has an invariant ("one incomplete pile per color"),
+    enforce it in one normalizer invoked by every path, not in each action.
+12. **Variants belong behind a host toggle.** New "fun cards" were added as
+    opt-in: each card spec carries a `fun` flag, the deck builder takes the
+    lobby's toggle, and *fixed* per-game counts (not deck-scaled) keep
+    powerful one-offs rare. The monte-carlo suite runs with the variant both
+    off and on. Design your spec table with such flags from the start.
 
 ### 8.5 Procedural audio (`client/src/audio.ts`)
 
