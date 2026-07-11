@@ -228,7 +228,7 @@ plus `logSeq`, a monotonically increasing total count. The log is triple-duty:
 
 - the in-game event feed shown to players,
 - the **trigger for client sound effects** (new lines since last snapshot are
-  pattern-matched to sounds — see §8.4),
+  pattern-matched to sounds — see §8.5),
 - a debugging trail.
 
 `logSeq` lets clients detect how many new lines arrived even though the array
@@ -431,7 +431,63 @@ The rendering architecture is the most transferable client idea:
   log panel, and copy/share invite links (Web Share API on mobile, clipboard
   on desktop).
 
-### 8.4 Procedural audio (`client/src/audio.ts`)
+### 8.4 Post-launch 3D/UX fixes — bake these in from day one
+
+The first build "worked" but real play (especially on phones) surfaced a set
+of problems that took follow-up fixes. Any new game on this stack should adopt
+the solutions from the start:
+
+1. **Coplanar cards flicker (z-fighting).** The original hand fan placed cards
+   at symmetric depths (`6.9 + |t| * 0.35`), so the two center cards — and
+   every mirrored pair — sat at *identical* depth and shimmered as the camera
+   moved. The fix is a hard rule: **no two overlapping cards may ever share a
+   plane.** Give every card in a group a strictly increasing offset on the
+   axis facing the camera: hand cards `z = 6.75 + i * 0.045` (left tucks under
+   right, like a real hand), opponents' hand backs `y = 0.6 + i * 0.02,
+   z = 1.35 + i * 0.015`, table piles/banks lifted `y = 0.02 + i * 0.012` per
+   card. These offsets are invisible but kill the entire flicker class.
+2. **Cards piling into an unreadable heap on the table.** Stacked table cards
+   need *deliberate* spreading, not just lift: piles fan each card toward the
+   table center (`z = -0.15 - i * 0.38` in seat-local space) so every card's
+   header stays visible; bank stacks get a small alternating spin
+   (`(i % 3 - 1) * 0.09`) so a pile of money reads as a pile, not one card.
+   Cap what you render for unbounded stacks (deck shows ≤ 12 backs, opponent
+   hands ≤ 8 backs) — counts carry the truth, geometry only needs to suggest it.
+3. **Hand cards jamming/spilling on narrow screens.** A fixed fan width either
+   overflows a portrait screen or squeezes cards into a jam. Fix: compute the
+   fan spread from the **camera frustum itself** — visible width at the hand's
+   depth is `2 · tan(fov/2) · dist · aspect`; clamp the spread to that minus
+   one card width, and shrink the base card scale on portrait (`0.8` vs
+   `1.05`). The hand then adapts to any device with no breakpoints.
+4. **A fixed camera can't serve both landscape and portrait.** The fix that
+   unlocked mobile: a single `viewFit(aspect)` function (in `layout.ts`, used
+   by *both* the camera rig and the layout math so they can never disagree)
+   returns a fit factor that pulls the camera up/back (up to 1.55×) and widens
+   the FOV (46° → 60°) as the viewport narrows. Everything camera-relative —
+   hand position, hand scale, orbit distance limits — multiplies by `fit`.
+5. **Camera flexibility with guardrails.** Players want to zoom in on cards
+   and peek around the table, so don't lock the camera — constrain it:
+   `OrbitControls` with pan disabled, zoom range `7·fit … 15·fit`, polar angle
+   clamped to `0.35 … 1.25` rad and azimuth to `±0.8` rad. One-finger orbit and
+   pinch-zoom on touch. The clamps matter as much as the freedom: players can
+   never end up under the table, behind an opponent, or lost in space.
+6. **3D zoom is not enough to read a card.** Even with orbit zoom, card text
+   on a phone is too small. Two 2D escape hatches fixed it: a 🔍 **full-size
+   card zoom** overlay for the selected hand card (renders the same canvas
+   texture at screen size), and a **player inspector** — tap any nameplate to
+   see that player's piles and bank as flat, tappable-to-zoom thumbnails.
+   Inspecting public zones must never require camera gymnastics.
+7. **Mobile browser plumbing** (fixed in one pass, keep as a checklist):
+   `100dvh` layout (not `100vh`), safe-area insets for notches, canvas
+   `touch-action: none` with `manipulation` on controls (no double-tap zoom),
+   16px+ inputs (no iOS focus auto-zoom), no long-press callout,
+   `devicePixelRatio` capped at 2 for phone GPUs, compact HUD under 760px with
+   the log as a toggleable overlay.
+8. **Whose-turn visibility.** Playtesters missed their own turn: fix was a
+   highly visible turn timer/banner state, your-turn chime (§8.5), and turn
+   highlighting on nameplates. Assume players are distracted between turns.
+
+### 8.5 Procedural audio (`client/src/audio.ts`)
 
 - Everything synthesized in the Web Audio API: a generative ambient loop
   (detuned pad chords + sparse pentatonic plucks through a lowpass) and short
@@ -667,3 +723,7 @@ deploy — carries over without modification.
    both on `/healthz`.**
 10. **Log lines are a product surface**: they feed the event feed, the sound
     engine, and debugging — write them well.
+11. **No two overlapping cards ever share a plane, and one function owns the
+    camera/layout math.** Tiny per-card depth offsets kill z-fighting; a
+    shared `viewFit(aspect)` keeps the camera rig and layout from drifting;
+    fan widths derive from the frustum, not from breakpoints (§8.4).
